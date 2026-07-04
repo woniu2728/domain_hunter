@@ -63,6 +63,10 @@ CREATE TABLE IF NOT EXISTS jobs (
     total_scored INTEGER NOT NULL DEFAULT 0,
     total_available INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_one_running_job
+ON jobs(status)
+WHERE status = 'running';
 """
 
 
@@ -223,6 +227,11 @@ class Database:
             )
             await db.commit()
             return int(cursor.lastrowid)
+
+    async def has_running_job(self) -> bool:
+        async with aiosqlite.connect(self.path) as db:
+            row = (await db.execute_fetchall("SELECT COUNT(*) FROM jobs WHERE status = 'running'"))[0]
+        return int(row[0]) > 0
 
     async def finish_job(
         self,

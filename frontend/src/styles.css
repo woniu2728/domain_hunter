@@ -155,6 +155,19 @@ h2 {
   padding: 11px 15px;
 }
 
+.toolbar button:disabled {
+  cursor: not-allowed;
+  background: #9aa7b2;
+}
+
+.hint {
+  color: #56616b;
+  background: #ffffff;
+  border: 1px solid #dfe5eb;
+  border-radius: 8px;
+  padding: 11px 13px;
+}
+
 .upload {
   position: relative;
   overflow: hidden;
@@ -164,6 +177,12 @@ h2 {
   border: 1px solid #cbd4dd;
   color: #20242a;
   padding: 10px 14px;
+}
+
+.upload.disabled {
+  color: #69737d;
+  background: #eef2f5;
+  cursor: not-allowed;
 }
 
 .upload input {

@@ -88,6 +88,11 @@ async def job(job_id: int) -> dict:
 async def run_job(background_tasks: BackgroundTasks, payload: dict | None = None) -> dict:
     db = _db()
     await db.init()
+    if await db.has_running_job():
+        raise HTTPException(status_code=409, detail="已有任务正在运行，请等待完成后再启动。")
+    config = await ConfigService(db).get_config()
+    if not config.czds_zone_url:
+        raise HTTPException(status_code=400, detail="请先上传已删除域名列表，或在配置中填写 CZDS Zone 地址。")
     job_id = await db.create_job("api")
     background_tasks.add_task(_run_background_job, job_id, payload or {})
     return {"job_id": job_id, "status": "running"}
@@ -97,6 +102,8 @@ async def run_job(background_tasks: BackgroundTasks, payload: dict | None = None
 async def upload_deleted_file(background_tasks: BackgroundTasks, file: UploadFile = File(...)) -> dict:
     db = _db()
     await db.init()
+    if await db.has_running_job():
+        raise HTTPException(status_code=409, detail="已有任务正在运行，请等待完成后再上传。")
     suffix = Path(file.filename or "deleted.txt").suffix or ".txt"
     temp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
     try:

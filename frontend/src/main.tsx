@@ -63,6 +63,10 @@ const SOURCE_LABELS: Record<string, string> = {
   manual: "手动运行"
 };
 
+const ERROR_LABELS: Record<string, string> = {
+  "Provide deleted_file or both today_zone and yesterday_zone.": "请先上传已删除域名列表，或在配置中填写 CZDS Zone 地址。"
+};
+
 function App() {
   const [view, setView] = useState<View>("dashboard");
   const [stats, setStats] = useState<Stats>({ domains: 0, available: 0, spam: 0, jobs: 0 });
@@ -72,6 +76,8 @@ function App() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [message, setMessage] = useState("");
+  const hasRunningJob = jobs.some((job) => job.status === "running");
+  const hasDirectRunSource = Boolean(config.czds_zone_url);
 
   async function loadAll() {
     const [statsData, jobsData, candidatesData, configData] = await Promise.all([
@@ -134,11 +140,29 @@ function App() {
         </header>
 
         {message && <div className="notice">{message}</div>}
-        {view === "dashboard" && <Dashboard stats={stats} jobs={jobs} candidates={candidates} onRun={runJob} setMessage={setMessage} />}
+        {view === "dashboard" && (
+          <Dashboard
+            stats={stats}
+            jobs={jobs}
+            candidates={candidates}
+            onRun={runJob}
+            setMessage={setMessage}
+            hasRunningJob={hasRunningJob}
+            hasDirectRunSource={hasDirectRunSource}
+          />
+        )}
         {view === "candidates" && (
           <Candidates candidates={candidates} search={search} setSearch={setSearch} status={status} setStatus={setStatus} />
         )}
-        {view === "jobs" && <Jobs jobs={jobs} onRun={runJob} setMessage={setMessage} />}
+        {view === "jobs" && (
+          <Jobs
+            jobs={jobs}
+            onRun={runJob}
+            setMessage={setMessage}
+            hasRunningJob={hasRunningJob}
+            hasDirectRunSource={hasDirectRunSource}
+          />
+        )}
         {view === "config" && <ConfigView config={config} setConfig={setConfig} setMessage={setMessage} />}
       </main>
     </div>
@@ -155,7 +179,23 @@ function App() {
   }
 }
 
-function Dashboard({ stats, jobs, candidates, onRun, setMessage }: { stats: Stats; jobs: Job[]; candidates: Candidate[]; onRun: () => Promise<void>; setMessage: (value: string) => void }) {
+function Dashboard({
+  stats,
+  jobs,
+  candidates,
+  onRun,
+  setMessage,
+  hasRunningJob,
+  hasDirectRunSource
+}: {
+  stats: Stats;
+  jobs: Job[];
+  candidates: Candidate[];
+  onRun: () => Promise<void>;
+  setMessage: (value: string) => void;
+  hasRunningJob: boolean;
+  hasDirectRunSource: boolean;
+}) {
   return (
     <section className="stack">
       <div className="metrics">
@@ -165,11 +205,15 @@ function Dashboard({ stats, jobs, candidates, onRun, setMessage }: { stats: Stat
         <Metric label="任务数" value={stats.jobs} />
       </div>
       <div className="toolbar">
-        <button onClick={() => onRun().catch((error) => setMessage(error.message))}>
+        <button disabled={hasRunningJob || !hasDirectRunSource} onClick={() => onRun().catch((error) => setMessage(error.message))}>
           <Play size={18} />
-          运行流程
+          {hasRunningJob ? "任务运行中" : "从 CZDS 运行"}
         </button>
-        <UploadButton setMessage={setMessage} />
+        <UploadButton setMessage={setMessage} disabled={hasRunningJob} />
+      </div>
+      <div className="hint">
+        流程会读取已删除域名来源，依次执行规则过滤、品牌评分、可注册查询、Wayback 历史检查和邮件通知。
+        {!hasDirectRunSource && " 从 CZDS 运行需要先在配置中填写 CZDS Zone 地址；没有配置时请上传已删除域名列表。"}
       </div>
       <h2>高分候选</h2>
       <CandidateTable candidates={candidates.slice(0, 10)} />
@@ -199,15 +243,31 @@ function Candidates({ candidates, search, setSearch, status, setStatus }: { cand
   );
 }
 
-function Jobs({ jobs, onRun, setMessage }: { jobs: Job[]; onRun: () => Promise<void>; setMessage: (value: string) => void }) {
+function Jobs({
+  jobs,
+  onRun,
+  setMessage,
+  hasRunningJob,
+  hasDirectRunSource
+}: {
+  jobs: Job[];
+  onRun: () => Promise<void>;
+  setMessage: (value: string) => void;
+  hasRunningJob: boolean;
+  hasDirectRunSource: boolean;
+}) {
   return (
     <section className="stack">
       <div className="toolbar">
-        <button onClick={() => onRun().catch((error) => setMessage(error.message))}>
+        <button disabled={hasRunningJob || !hasDirectRunSource} onClick={() => onRun().catch((error) => setMessage(error.message))}>
           <Play size={18} />
-          运行流程
+          {hasRunningJob ? "任务运行中" : "从 CZDS 运行"}
         </button>
-        <UploadButton setMessage={setMessage} />
+        <UploadButton setMessage={setMessage} disabled={hasRunningJob} />
+      </div>
+      <div className="hint">
+        流程会读取已删除域名来源，依次执行规则过滤、品牌评分、可注册查询、Wayback 历史检查和邮件通知。
+        {!hasDirectRunSource && " 从 CZDS 运行需要 CZDS Zone 地址；没有配置时请使用上传入口。"}
       </div>
       <JobTable jobs={jobs} />
     </section>
@@ -276,7 +336,7 @@ function ConfigView({ config, setConfig, setMessage }: { config: Config; setConf
   );
 }
 
-function UploadButton({ setMessage }: { setMessage: (value: string) => void }) {
+function UploadButton({ setMessage, disabled = false }: { setMessage: (value: string) => void; disabled?: boolean }) {
   async function upload(file: File) {
     const form = new FormData();
     form.append("file", file);
@@ -285,9 +345,14 @@ function UploadButton({ setMessage }: { setMessage: (value: string) => void }) {
   }
 
   return (
-    <label className="upload">
-      上传已删除列表
-      <input type="file" accept=".txt,.csv" onChange={(event) => event.target.files?.[0] && upload(event.target.files[0]).catch((error) => setMessage(error.message))} />
+    <label className={`upload ${disabled ? "disabled" : ""}`}>
+      {disabled ? "任务运行中" : "上传已删除列表"}
+      <input
+        disabled={disabled}
+        type="file"
+        accept=".txt,.csv"
+        onChange={(event) => event.target.files?.[0] && upload(event.target.files[0]).catch((error) => setMessage(error.message))}
+      />
     </label>
   );
 }
@@ -356,7 +421,7 @@ function JobTable({ jobs }: { jobs: Job[] }) {
               <td>{job.total_filtered}</td>
               <td>{job.total_scored}</td>
               <td>{job.total_available}</td>
-              <td>{job.error || "-"}</td>
+              <td>{errorLabel(job.error)}</td>
             </tr>
           ))}
         </tbody>
@@ -368,7 +433,17 @@ function JobTable({ jobs }: { jobs: Job[] }) {
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API}${path}`, init);
   if (!response.ok) {
-    throw new Error(await response.text());
+    const text = await response.text();
+    let message = text;
+    try {
+      const data = JSON.parse(text) as { detail?: string };
+      if (data.detail) {
+        message = data.detail;
+      }
+    } catch {
+      message = text;
+    }
+    throw new Error(message);
   }
   return response.json() as Promise<T>;
 }
@@ -383,6 +458,13 @@ function statusLabel(status: string) {
 
 function sourceLabel(source: string) {
   return SOURCE_LABELS[source] ?? source;
+}
+
+function errorLabel(error: string | null) {
+  if (!error) {
+    return "-";
+  }
+  return ERROR_LABELS[error] ?? error;
 }
 
 createRoot(document.getElementById("root")!).render(<App />);
