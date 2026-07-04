@@ -464,12 +464,9 @@ function ConfigView({ config, setConfig, setMessage }: { config: AppConfig; setC
     },
     {
       title: "定时任务",
-      description: "控制自动运行时间。",
-      fields: [
-        ["schedule_enabled", "启用定时任务"],
-        ["schedule_hour", "定时小时"],
-        ["schedule_minute", "定时分钟"]
-      ]
+      description: "启用后，后端服务会每天按固定时间自动运行完整流程。",
+      schedule: true,
+      fields: []
     },
     {
       title: "邮件通知",
@@ -508,6 +505,8 @@ function ConfigView({ config, setConfig, setMessage }: { config: AppConfig; setC
           <div className="configGrid">
             {"zoneSources" in group && group.zoneSources ? (
               <ZoneSourcesEditor config={config} setConfig={setConfig} />
+            ) : "schedule" in group && group.schedule ? (
+              <ScheduleEditor config={config} setConfig={setConfig} />
             ) : (
               group.fields.map(([key, label]) => (
                 <ConfigField config={config} fieldKey={key} key={key} label={label} setConfig={setConfig} />
@@ -521,6 +520,38 @@ function ConfigView({ config, setConfig, setMessage }: { config: AppConfig; setC
         保存配置
       </button>
     </section>
+  );
+}
+
+function ScheduleEditor({ config, setConfig }: { config: AppConfig; setConfig: (value: AppConfig) => void }) {
+  const hour = Number(config.schedule_hour ?? 2);
+  const minute = Number(config.schedule_minute ?? 0);
+  const timeValue = `${String(clampTime(hour, 0, 23)).padStart(2, "0")}:${String(clampTime(minute, 0, 59)).padStart(2, "0")}`;
+
+  function updateTime(value: string) {
+    const [rawHour, rawMinute] = value.split(":");
+    setConfig({
+      ...config,
+      schedule_hour: clampTime(Number(rawHour), 0, 23),
+      schedule_minute: clampTime(Number(rawMinute), 0, 59)
+    });
+  }
+
+  return (
+    <>
+      <label>
+        <span>启用定时任务</span>
+        <input
+          type="checkbox"
+          checked={Boolean(config.schedule_enabled)}
+          onChange={(event) => setConfig({ ...config, schedule_enabled: event.target.checked })}
+        />
+      </label>
+      <label>
+        <span>每日执行时间</span>
+        <input type="time" value={timeValue} onChange={(event) => updateTime(event.target.value)} />
+      </label>
+    </>
   );
 }
 
@@ -720,6 +751,13 @@ function errorLabel(error: string | null) {
     return "-";
   }
   return ERROR_LABELS[error] ?? error;
+}
+
+function clampTime(value: number, min: number, max: number) {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+  return Math.min(max, Math.max(min, value));
 }
 
 function defaultPreviewConfig(): PreviewConfig {
