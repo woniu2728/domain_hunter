@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Activity, Database, Folder, Play, RefreshCw, Search, Settings } from "lucide-react";
+import { Activity, Database, Folder, Play, RefreshCw, RotateCw, Search, Settings, Square } from "lucide-react";
 import "./styles.css";
 
 type View = "dashboard" | "candidates" | "config";
@@ -189,6 +189,8 @@ function App() {
             stats={stats}
             jobs={jobs}
             candidates={candidates}
+            onRestartJob={runJob}
+            onStopJob={stopJob}
           />
         )}
         {view === "candidates" && (
@@ -229,6 +231,12 @@ function App() {
       body: JSON.stringify({})
     });
     setMessage(`任务 ${result.job_id} 已启动`);
+    await loadAll();
+  }
+
+  async function stopJob() {
+    await api<{ status: string }>("/api/jobs/stop", { method: "POST" });
+    setMessage("任务已停止");
     await loadAll();
   }
 
@@ -275,12 +283,18 @@ function viewFromHash(hash: string): View {
 function Dashboard({
   stats,
   jobs,
-  candidates
+  candidates,
+  onRestartJob,
+  onStopJob
 }: {
   stats: Stats;
   jobs: Job[];
   candidates: Candidate[];
+  onRestartJob: () => Promise<void>;
+  onStopJob: () => Promise<void>;
 }) {
+  const hasRunningJob = jobs.some((job) => job.status === "running");
+
   return (
     <section className="stack">
       <div className="metrics">
@@ -295,7 +309,27 @@ function Dashboard({
       </div>
       <h2>高分候选</h2>
       <CandidateTable candidates={candidates.slice(0, 10)} />
-      <h2>最近任务</h2>
+      <div className="sectionTitleRow">
+        <h2>最近任务</h2>
+        <div className="taskActions">
+          <button
+            className="secondaryAction"
+            disabled={!hasRunningJob}
+            onClick={() => onStopJob().catch((error) => window.alert(error.message))}
+            type="button"
+          >
+            <Square size={16} />
+            停止任务
+          </button>
+          <button
+            onClick={() => onRestartJob().catch((error) => window.alert(error.message))}
+            type="button"
+          >
+            <RotateCw size={16} />
+            重启任务
+          </button>
+        </div>
+      </div>
       <JobTable jobs={jobs.slice(0, 5)} />
     </section>
   );

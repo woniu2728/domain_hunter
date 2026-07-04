@@ -146,14 +146,27 @@ h2 {
 }
 
 .toolbar,
-.filters {
+.filters,
+.taskActions,
+.sectionTitleRow {
   display: flex;
-  gap: 12px;
   align-items: center;
   flex-wrap: wrap;
 }
 
+.toolbar,
+.filters,
+.taskActions {
+  gap: 12px;
+}
+
+.sectionTitleRow {
+  justify-content: space-between;
+  gap: 14px;
+}
+
 .toolbar button,
+.taskActions button,
 .save {
   display: inline-flex;
   align-items: center;
@@ -163,15 +176,19 @@ h2 {
   padding: 11px 15px;
 }
 
-.toolbar button.secondaryAction {
+.toolbar button.secondaryAction,
+.taskActions button.secondaryAction {
   background: #ffffff;
   color: #20242a;
   border: 1px solid #cbd4dd;
 }
 
-.toolbar button:disabled {
+.toolbar button:disabled,
+.taskActions button:disabled {
   cursor: not-allowed;
   background: #9aa7b2;
+  border-color: #9aa7b2;
+  color: #ffffff;
 }
 
 .hint {

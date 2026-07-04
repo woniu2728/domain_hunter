@@ -177,6 +177,12 @@ async def run_job(payload: dict | None = None) -> dict:
     return {"job_id": job_id, "status": "running"}
 
 
+@app.post("/api/jobs/stop")
+async def stop_job() -> dict[str, str]:
+    await job_runner_service.cancel_running("用户手动停止任务")
+    return {"status": "cancelled"}
+
+
 def _preview_config(payload: dict, base_config: AppConfig) -> AppConfig:
     values = base_config.__dict__.copy()
     for key in (
