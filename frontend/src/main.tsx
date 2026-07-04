@@ -675,12 +675,6 @@ function EmailSettingsEditor({
 }
 
 function RuntimePathsEditor({ config, setConfig }: { config: AppConfig; setConfig: (value: AppConfig) => void }) {
-  const derivedPaths = [
-    ["数据库", String(config.database_url ?? "")],
-    ["数据", String(config.data_dir ?? "")],
-    ["缓存", String(config.cache_dir ?? "")]
-  ];
-
   return (
     <div className="runtimePaths">
       <label className="runtimeInput">
@@ -694,14 +688,6 @@ function RuntimePathsEditor({ config, setConfig }: { config: AppConfig; setConfi
           placeholder="runtime"
         />
       </label>
-      <div className="derivedPaths" aria-label="自动生成路径">
-        {derivedPaths.map(([label, value]) => (
-          <div className="derivedPath" key={label}>
-            <span>{label}</span>
-            <strong title={value}>{value}</strong>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
