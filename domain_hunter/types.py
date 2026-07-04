@@ -43,9 +43,9 @@ class HistoryResult:
 @dataclass(frozen=True)
 class AppConfig:
     app_env: str = "local"
-    database_url: str = "database/domain_hunter.sqlite3"
-    data_dir: str = "data"
-    cache_dir: str = "cache"
+    database_url: str = "runtime/database/domain_hunter.sqlite3"
+    data_dir: str = "runtime/data"
+    cache_dir: str = "runtime/cache"
     czds_zone_url: str = ""
     czds_bearer_token: str = ""
     availability_provider: str = "mock"

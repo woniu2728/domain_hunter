@@ -97,9 +97,9 @@ docker compose down
 
 默认路径：
 
-- 数据库：`database/domain_hunter.sqlite3`
-- 数据目录：`data`
-- 缓存目录：`cache`
+- 数据库：`runtime/database/domain_hunter.sqlite3`
+- 数据目录：`runtime/data`
+- 缓存目录：`runtime/cache`
 
 这些路径也可在前端 Config 页面维护，保存后写入 `runtime/app_settings.json`，后续启动会读取该文件。
 

@@ -15,9 +15,9 @@ RUNTIME_SETTINGS_PATH = Path("runtime/app_settings.json")
 RUNTIME_SETTING_KEYS = {"app_env", "data_dir", "cache_dir", "database_url"}
 DEFAULT_RUNTIME_SETTINGS = {
     "app_env": "local",
-    "data_dir": "data",
-    "cache_dir": "cache",
-    "database_url": "database/domain_hunter.sqlite3",
+    "data_dir": "runtime/data",
+    "cache_dir": "runtime/cache",
+    "database_url": "runtime/database/domain_hunter.sqlite3",
 }
 
 
