@@ -720,6 +720,24 @@ function ScheduleEditor({ config, setConfig }: { config: AppConfig; setConfig: (
         <span>每日执行时间</span>
         <input type="time" value={timeValue} onChange={(event) => updateTime(event.target.value)} />
       </label>
+      <label>
+        <span>失败重试次数</span>
+        <input
+          min="0"
+          type="number"
+          value={String(config.failure_retry_count ?? 2)}
+          onChange={(event) => setConfig({ ...config, failure_retry_count: Number(event.target.value) })}
+        />
+      </label>
+      <label>
+        <span>失败重试间隔秒数</span>
+        <input
+          min="0"
+          type="number"
+          value={String(config.failure_retry_delay_seconds ?? 300)}
+          onChange={(event) => setConfig({ ...config, failure_retry_delay_seconds: Number(event.target.value) })}
+        />
+      </label>
     </>
   );
 }

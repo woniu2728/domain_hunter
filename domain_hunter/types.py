@@ -76,6 +76,8 @@ class AppConfig:
     email_from: str = ""
     email_to: str = ""
     send_empty_report: bool = False
+    failure_retry_count: int = 2
+    failure_retry_delay_seconds: int = 300
 
     def masked(self) -> dict[str, Any]:
         data = self.__dict__.copy()

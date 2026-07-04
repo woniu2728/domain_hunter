@@ -35,6 +35,7 @@ async def startup() -> None:
     db = _db()
     await db.init()
     job_runner_service.start(_db)
+    await job_runner_service.cleanup_stale_running()
     await scheduler_service.start(_db)
     await scheduler_service.reload()
 

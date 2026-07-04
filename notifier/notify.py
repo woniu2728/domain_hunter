@@ -69,6 +69,34 @@ async def send_test_email(config: AppConfig) -> None:
         smtp.send_message(message)
 
 
+async def notify_job_failure(config: AppConfig, job_id: int, source: str, error: str, attempt: int, max_attempts: int) -> None:
+    if not _email_configured(config):
+        return
+
+    message = EmailMessage()
+    message["Subject"] = f"Domain Hunter - Task Failed #{job_id}"
+    message["From"] = config.email_from
+    message["To"] = config.email_to
+    message.set_content(
+        "\n".join(
+            [
+                "Domain Hunter 定时任务失败。",
+                f"Job ID: {job_id}",
+                f"来源: {source}",
+                f"尝试次数: {attempt}/{max_attempts}",
+                f"错误: {error}",
+            ]
+        )
+    )
+
+    with smtplib.SMTP(config.smtp_host, config.smtp_port, timeout=20) as smtp:
+        if config.smtp_use_tls:
+            smtp.starttls()
+        if config.smtp_username:
+            smtp.login(config.smtp_username, config.smtp_password)
+        smtp.send_message(message)
+
+
 def _plain_text(scores: list[ScoreResult], history_by_domain: dict[str, HistoryResult]) -> str:
     if not scores:
         return "No clean available candidates found."

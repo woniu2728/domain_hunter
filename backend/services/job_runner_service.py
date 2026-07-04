@@ -9,6 +9,7 @@ from backend.services.config_service import ConfigService
 from backend.services.pipeline_service import PipelineService
 from database import Database
 from domain_hunter.types import AppConfig
+from notifier import notify_job_failure
 
 
 class JobRunnerService:
@@ -22,6 +23,11 @@ class JobRunnerService:
 
     async def shutdown(self) -> None:
         await self.cancel_running("服务关闭，任务已取消")
+
+    async def cleanup_stale_running(self, reason: str = "服务启动时清理未完成任务") -> None:
+        db = self._db()
+        await db.init()
+        await db.cancel_running_jobs(reason)
 
     async def restart(self, source: str = "api", payload: dict | None = None) -> int:
         db = self._db()
@@ -61,6 +67,47 @@ class JobRunnerService:
         self.current_job_id = None
 
     async def _run(self, job_id: int, source: str, payload: dict) -> None:
+        try:
+            success = await self._run_attempt(job_id, source, payload)
+            if source != "schedule" or success:
+                return
+
+            db = self._db()
+            await db.init()
+            config = await ConfigService(db).get_config()
+            max_attempts = max(1, config.failure_retry_count + 1)
+            delay_seconds = max(0, config.failure_retry_delay_seconds)
+
+            for attempt in range(2, max_attempts + 1):
+                last_job = await db.get_job(job_id)
+                if last_job is None or last_job.status != "failed":
+                    return
+                if delay_seconds:
+                    await asyncio.sleep(delay_seconds)
+                retry_job_id = await db.create_job("schedule-retry")
+                self.current_job_id = retry_job_id
+                success = await self._run_attempt(retry_job_id, "schedule-retry", payload)
+                job_id = retry_job_id
+                if success:
+                    return
+
+            final_job = await db.get_job(job_id)
+            if final_job and final_job.status == "failed":
+                latest_config = await ConfigService(db).get_config()
+                with suppress(Exception):
+                    await notify_job_failure(
+                        latest_config,
+                        job_id=final_job.id,
+                        source=final_job.source,
+                        error=final_job.error or "未知错误",
+                        attempt=max_attempts,
+                        max_attempts=max_attempts,
+                    )
+        finally:
+            self.current_task = None
+            self.current_job_id = None
+
+    async def _run_attempt(self, job_id: int, source: str, payload: dict) -> bool:
         db = self._db()
         await db.init()
         config = await ConfigService(db).get_config()
@@ -75,13 +122,23 @@ class JobRunnerService:
                 create_job=False,
                 job_id=job_id,
             )
+            return True
         except asyncio.CancelledError:
             await db.cancel_job_if_running(job_id, "任务被取消")
             raise
-        finally:
-            if self.current_job_id == job_id:
-                self.current_task = None
-                self.current_job_id = None
+        except Exception as exc:
+            job = await db.get_job(job_id)
+            if job and job.status == "running":
+                await db.finish_job(
+                    job_id,
+                    "failed",
+                    total_deleted=0,
+                    total_filtered=0,
+                    total_scored=0,
+                    total_available=0,
+                    error=str(exc),
+                )
+            return False
 
     def _db(self) -> Database:
         if self.db_factory is None:
