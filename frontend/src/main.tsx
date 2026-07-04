@@ -102,7 +102,7 @@ const ERROR_LABELS: Record<string, string> = {
 };
 
 function App() {
-  const [view, setView] = useState<View>("dashboard");
+  const [view, setView] = useState<View>(() => viewFromHash(window.location.hash));
   const [stats, setStats] = useState<Stats>({ domains: 0, available: 0, spam: 0, jobs: 0 });
   const [jobs, setJobs] = useState<Job[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -133,6 +133,15 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const onHashChange = () => setView(viewFromHash(window.location.hash));
+    window.addEventListener("hashchange", onHashChange);
+    if (!window.location.hash) {
+      window.history.replaceState(null, "", "#dashboard");
+    }
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
+
+  useEffect(() => {
     if (view === "candidates") {
       api<Candidate[]>(`/api/domains?limit=100${status ? `&status=${status}` : ""}${search ? `&search=${encodeURIComponent(search)}` : ""}`)
         .then(setCandidates)
@@ -155,7 +164,7 @@ function App() {
         <div className="brand">域名猎手</div>
         <nav>
           {nav.map(([key, Icon, label]) => (
-            <button className={view === key ? "active" : ""} key={key} onClick={() => setView(key)}>
+            <button className={view === key ? "active" : ""} key={key} onClick={() => navigateTo(key)}>
               <Icon size={18} />
               {label}
             </button>
@@ -252,6 +261,15 @@ function App() {
     setPreviewResult(result);
     setMessage(`预览完成：原始 ${result.total_source} 个，过滤后 ${result.total_filtered} 个，展示 ${result.total_scored} 个。`);
   }
+}
+
+function navigateTo(view: View) {
+  window.location.hash = view;
+}
+
+function viewFromHash(hash: string): View {
+  const value = hash.replace(/^#/, "");
+  return value === "candidates" || value === "config" ? value : "dashboard";
 }
 
 function Dashboard({
