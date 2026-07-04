@@ -22,7 +22,7 @@
 python -m pip install -r requirements.txt
 ```
 
-应用自带默认数据库、数据目录和缓存目录；所有配置均可在前端 Config 页面维护。
+应用自带默认运行目录；所有配置均可在前端 Config 页面维护。
 
 ## 使用
 
@@ -97,17 +97,18 @@ docker compose down
 
 ## 配置
 
-默认路径：
+默认运行目录：
 
+- 运行目录：`runtime`
 - 数据库：`runtime/database/domain_hunter.sqlite3`
 - 数据目录：`runtime/data`
 - 缓存目录：`runtime/cache`
 
-这些路径也可在前端 Config 页面维护，保存后写入 `runtime/app_settings.json`，后续启动会读取该文件。
+运行目录可在前端 Config 页面维护，保存后写入 `runtime/app_settings.json`，后续启动会读取该文件。数据库、数据目录和缓存目录固定在运行目录下派生，不单独配置。
 
 业务配置会存入后端 SQLite `settings` 表，也可在前端 Config 页面维护：
 
-- 数据库路径、数据目录、缓存目录。
+- 运行目录。
 - 多个后缀的 Zone 来源、Bearer Token 和启用状态。
 - Availability 并发与超时。
 - Wayback 开关与超时。

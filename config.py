@@ -12,23 +12,23 @@ load_dotenv()
 
 
 RUNTIME_SETTINGS_PATH = Path("runtime/app_settings.json")
-RUNTIME_SETTING_KEYS = {"data_dir", "cache_dir", "database_url"}
+RUNTIME_SETTING_KEYS = {"runtime_dir"}
 DEFAULT_RUNTIME_SETTINGS = {
     "app_env": "local",
-    "data_dir": "runtime/data",
-    "cache_dir": "runtime/cache",
-    "database_url": "runtime/database/domain_hunter.sqlite3",
+    "runtime_dir": "runtime",
 }
 
 
 @dataclass(frozen=True)
 class Settings:
     app_env: str
+    runtime_dir: Path
     data_dir: Path
     cache_dir: Path
     database_url: Path
 
     def ensure_dirs(self) -> None:
+        self.runtime_dir.mkdir(parents=True, exist_ok=True)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.database_url.parent.mkdir(parents=True, exist_ok=True)
@@ -36,12 +36,14 @@ class Settings:
 
 def get_settings() -> Settings:
     values = load_runtime_settings()
+    runtime_dir = Path(values["runtime_dir"])
 
     return Settings(
         app_env=values["app_env"],
-        data_dir=Path(values["data_dir"]),
-        cache_dir=Path(values["cache_dir"]),
-        database_url=Path(values["database_url"]),
+        runtime_dir=runtime_dir,
+        data_dir=runtime_dir / "data",
+        cache_dir=runtime_dir / "cache",
+        database_url=runtime_dir / "database" / "domain_hunter.sqlite3",
     )
 
 

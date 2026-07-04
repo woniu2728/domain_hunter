@@ -406,12 +406,9 @@ function ConfigView({
   const groups = [
     {
       title: "运行路径",
-      description: "后端启动和运行时使用的本地路径。",
-      fields: [
-        ["database_url", "数据库路径"],
-        ["data_dir", "数据目录"],
-        ["cache_dir", "缓存目录"]
-      ]
+      description: "只配置运行目录；数据库、数据和缓存路径会固定在该目录下生成。",
+      runtimePaths: true,
+      fields: []
     },
     {
       title: "数据源",
@@ -478,6 +475,8 @@ function ConfigView({
           <div className="configGrid">
             {"zoneSources" in group && group.zoneSources ? (
               <ZoneSourcesEditor config={config} setConfig={setConfig} />
+            ) : "runtimePaths" in group && group.runtimePaths ? (
+              <RuntimePathsEditor config={config} setConfig={setConfig} />
             ) : "schedule" in group && group.schedule ? (
               <ScheduleEditor config={config} setConfig={setConfig} />
             ) : (
@@ -497,6 +496,35 @@ function ConfigView({
       </button>
       {!hasDirectRunSource && <div className="hint">启动任务需要先添加并启用至少一个 Zone 来源；点击启动会弹出提示。</div>}
     </section>
+  );
+}
+
+function RuntimePathsEditor({ config, setConfig }: { config: AppConfig; setConfig: (value: AppConfig) => void }) {
+  return (
+    <>
+      <label>
+        <span>运行目录</span>
+        <input
+          value={String(config.runtime_dir ?? "runtime")}
+          onChange={(event) => setConfig({ ...config, runtime_dir: event.target.value })}
+          placeholder="runtime"
+        />
+      </label>
+      <div className="derivedPaths">
+        <div>
+          <span>数据库路径</span>
+          <strong>{String(config.database_url ?? "")}</strong>
+        </div>
+        <div>
+          <span>数据目录</span>
+          <strong>{String(config.data_dir ?? "")}</strong>
+        </div>
+        <div>
+          <span>缓存目录</span>
+          <strong>{String(config.cache_dir ?? "")}</strong>
+        </div>
+      </div>
+    </>
   );
 }
 

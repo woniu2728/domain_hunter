@@ -357,6 +357,31 @@ th {
   height: 20px;
 }
 
+.derivedPaths {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.derivedPaths div {
+  background: #fafbfc;
+  border: 1px solid #e4e9ee;
+  border-radius: 8px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.derivedPaths span {
+  color: #56616b;
+  font-size: 13px;
+}
+
+.derivedPaths strong {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
 .zoneSources {
   grid-column: 1 / -1;
   display: grid;
@@ -434,7 +459,8 @@ th {
 
   .metrics,
   .configGrid,
-  .previewGrid {
+  .previewGrid,
+  .derivedPaths {
     grid-template-columns: 1fr;
   }
 

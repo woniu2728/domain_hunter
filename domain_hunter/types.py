@@ -43,6 +43,7 @@ class HistoryResult:
 @dataclass(frozen=True)
 class AppConfig:
     app_env: str = "local"
+    runtime_dir: str = "runtime"
     database_url: str = "runtime/database/domain_hunter.sqlite3"
     data_dir: str = "runtime/data"
     cache_dir: str = "runtime/cache"

@@ -19,6 +19,7 @@ class ConfigService:
         settings = get_settings()
         defaults = AppConfig(
             app_env=settings.app_env,
+            runtime_dir=str(settings.runtime_dir),
             database_url=str(settings.database_url),
             data_dir=str(settings.data_dir),
             cache_dir=str(settings.cache_dir),
@@ -41,6 +42,8 @@ class ConfigService:
         for key, value in payload.items():
             if key not in allowed:
                 continue
+            if key in {"database_url", "data_dir", "cache_dir"}:
+                continue
             if key in SECRET_KEYS and (value is None or value == "" or value == "********"):
                 continue
             if key == "zone_sources":
@@ -52,11 +55,16 @@ class ConfigService:
             else:
                 updates[key] = coerced
 
+        target_db = self.db
         if runtime_updates:
             save_runtime_settings(runtime_updates)
+            settings = get_settings()
+            target_db = Database(settings.database_url)
+            await target_db.init()
+            updates = _portable_settings(current_data) | updates
         if updates:
-            await self.db.set_settings(updates, secret_keys=SECRET_KEYS)
-        return await self.get_config()
+            await target_db.set_settings(updates, secret_keys=SECRET_KEYS)
+        return await ConfigService(target_db).get_config()
 
 
 def _coerce_value(key: str, value: Any, current_value: Any) -> Any:
@@ -71,6 +79,15 @@ def _coerce_value(key: str, value: Any, current_value: Any) -> Any:
     if isinstance(current_value, dict):
         return value if isinstance(value, dict) else {}
     return "" if value is None else str(value)
+
+
+def _portable_settings(current_data: dict[str, Any]) -> dict[str, Any]:
+    runtime_keys = RUNTIME_SETTING_KEYS | {"app_env", "database_url", "data_dir", "cache_dir"}
+    return {
+        key: value
+        for key, value in current_data.items()
+        if key not in runtime_keys and key not in SECRET_KEYS
+    }
 
 
 def _merge_zone_sources(value: Any, current_sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
