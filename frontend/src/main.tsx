@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Activity, Database, Mail, Play, RefreshCw, Search, Settings } from "lucide-react";
+import { Activity, Database, Play, RefreshCw, Search, Settings } from "lucide-react";
 import "./styles.css";
 
-type View = "dashboard" | "candidates" | "jobs" | "config";
+type View = "dashboard" | "candidates" | "config";
 
 type Stats = {
   domains: number;
@@ -76,7 +76,6 @@ const API = "";
 const VIEW_TITLES: Record<View, string> = {
   dashboard: "仪表盘",
   candidates: "候选域名",
-  jobs: "任务",
   config: "配置"
 };
 
@@ -144,7 +143,6 @@ function App() {
     () => [
       ["dashboard", Activity, "仪表盘"],
       ["candidates", Database, "候选域名"],
-      ["jobs", Play, "任务"],
       ["config", Settings, "配置"]
     ] as const,
     []
@@ -181,10 +179,6 @@ function App() {
             stats={stats}
             jobs={jobs}
             candidates={candidates}
-            onRun={runJob}
-            setMessage={setMessage}
-            hasRunningJob={hasRunningJob}
-            hasDirectRunSource={hasDirectRunSource}
           />
         )}
         {view === "candidates" && (
@@ -202,16 +196,16 @@ function App() {
             status={status}
           />
         )}
-        {view === "jobs" && (
-          <Jobs
-            jobs={jobs}
-            onRun={runJob}
-            setMessage={setMessage}
-            hasRunningJob={hasRunningJob}
+        {view === "config" && (
+          <ConfigView
+            config={config}
             hasDirectRunSource={hasDirectRunSource}
+            hasRunningJob={hasRunningJob}
+            onStartJob={startJobFromConfig}
+            setConfig={setConfig}
+            setMessage={setMessage}
           />
         )}
-        {view === "config" && <ConfigView config={config} setConfig={setConfig} setMessage={setMessage} />}
       </main>
     </div>
   );
@@ -224,6 +218,21 @@ function App() {
     });
     setMessage(`任务 ${result.job_id} 已启动`);
     await loadAll();
+  }
+
+  async function saveConfig() {
+    const saved = await api<AppConfig>("/api/config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(config)
+    });
+    setConfig(saved);
+    return saved;
+  }
+
+  async function startJobFromConfig() {
+    await saveConfig();
+    await runJob();
   }
 
   async function runPreview() {
@@ -240,19 +249,11 @@ function App() {
 function Dashboard({
   stats,
   jobs,
-  candidates,
-  onRun,
-  setMessage,
-  hasRunningJob,
-  hasDirectRunSource
+  candidates
 }: {
   stats: Stats;
   jobs: Job[];
   candidates: Candidate[];
-  onRun: () => Promise<void>;
-  setMessage: (value: string) => void;
-  hasRunningJob: boolean;
-  hasDirectRunSource: boolean;
 }) {
   return (
     <section className="stack">
@@ -263,15 +264,8 @@ function Dashboard({
         <Metric label="任务数" value={stats.jobs} />
         <Metric label="原始删除域名" value={stats.deleted_domains ?? 0} />
       </div>
-      <div className="toolbar">
-        <button disabled={hasRunningJob || !hasDirectRunSource} onClick={() => onRun().catch((error) => setMessage(error.message))}>
-          <Play size={18} />
-          {hasRunningJob ? "任务运行中" : "从 CZDS 运行"}
-        </button>
-      </div>
       <div className="hint">
         流程会读取已删除域名来源，依次执行规则过滤、品牌评分、可注册查询、Wayback 历史检查和邮件通知。
-        {!hasDirectRunSource && " 从 CZDS 运行需要先在配置中添加启用的 Zone 来源。"}
       </div>
       <h2>高分候选</h2>
       <CandidateTable candidates={candidates.slice(0, 10)} />
@@ -388,37 +382,21 @@ function PreviewField({
   );
 }
 
-function Jobs({
-  jobs,
-  onRun,
-  setMessage,
+function ConfigView({
+  config,
+  hasDirectRunSource,
   hasRunningJob,
-  hasDirectRunSource
+  onStartJob,
+  setConfig,
+  setMessage
 }: {
-  jobs: Job[];
-  onRun: () => Promise<void>;
-  setMessage: (value: string) => void;
-  hasRunningJob: boolean;
+  config: AppConfig;
   hasDirectRunSource: boolean;
+  hasRunningJob: boolean;
+  onStartJob: () => Promise<void>;
+  setConfig: (value: AppConfig) => void;
+  setMessage: (value: string) => void;
 }) {
-  return (
-    <section className="stack">
-      <div className="toolbar">
-        <button disabled={hasRunningJob || !hasDirectRunSource} onClick={() => onRun().catch((error) => setMessage(error.message))}>
-          <Play size={18} />
-          {hasRunningJob ? "任务运行中" : "从 CZDS 运行"}
-        </button>
-      </div>
-      <div className="hint">
-        流程会读取已删除域名来源，依次执行规则过滤、品牌评分、可注册查询、Wayback 历史检查和邮件通知。
-        {!hasDirectRunSource && " 从 CZDS 运行需要启用的 Zone 来源。"}
-      </div>
-      <JobTable jobs={jobs} />
-    </section>
-  );
-}
-
-function ConfigView({ config, setConfig, setMessage }: { config: AppConfig; setConfig: (value: AppConfig) => void; setMessage: (value: string) => void }) {
   const groups = [
     {
       title: "运行路径",
@@ -484,16 +462,6 @@ function ConfigView({ config, setConfig, setMessage }: { config: AppConfig; setC
     }
   ] as const;
 
-  async function save() {
-    const saved = await api<AppConfig>("/api/config", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(config)
-    });
-    setConfig(saved);
-    setMessage("配置已保存");
-  }
-
   return (
     <section className="configSections">
       {groups.map((group) => (
@@ -515,10 +483,15 @@ function ConfigView({ config, setConfig, setMessage }: { config: AppConfig; setC
           </div>
         </section>
       ))}
-      <button className="save" onClick={() => save().catch((error) => setMessage(error.message))}>
-        <Mail size={18} />
-        保存配置
+      <button
+        className="save"
+        disabled={hasRunningJob || !hasDirectRunSource}
+        onClick={() => onStartJob().catch((error) => setMessage(error.message))}
+      >
+        <Play size={18} />
+        {hasRunningJob ? "任务运行中" : "启动任务"}
       </button>
+      {!hasDirectRunSource && <div className="hint">启动任务需要先添加并启用至少一个 Zone 来源。</div>}
     </section>
   );
 }

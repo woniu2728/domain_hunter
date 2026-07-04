@@ -9,7 +9,7 @@
 - 品牌评分：短域名、纯字母、AI 关键词、字典词、可发音、双词组合等规则。
 - SQLite 落库：`domains`、`score`、`history`。
 - FastAPI 后端：配置、任务、候选域名、统计接口。
-- React 前端：Dashboard、Candidates、Jobs、Config。
+- React 前端：Dashboard、Candidates、Config；任务状态在 Dashboard 展示，任务启动入口在 Config。
 - Availability 查询：默认 `mock`，可切到 Verisign RDAP。
 - Wayback 历史检查：采样 CDX 结果并标记常见垃圾关键词。
 - 通知：配置 SMTP 后发送邮件，否则输出 Rich 表格。
