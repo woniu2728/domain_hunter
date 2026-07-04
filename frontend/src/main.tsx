@@ -203,6 +203,7 @@ function App() {
             config={config}
             hasDirectRunSource={hasDirectRunSource}
             hasRunningJob={hasRunningJob}
+            onSaveConfig={saveConfig}
             onStartJob={startJobFromConfig}
             setConfig={setConfig}
             setMessage={setMessage}
@@ -410,6 +411,7 @@ function ConfigView({
   config,
   hasDirectRunSource,
   hasRunningJob,
+  onSaveConfig,
   onStartJob,
   setConfig,
   setMessage
@@ -417,6 +419,7 @@ function ConfigView({
   config: AppConfig;
   hasDirectRunSource: boolean;
   hasRunningJob: boolean;
+  onSaveConfig: () => Promise<AppConfig>;
   onStartJob: () => Promise<void>;
   setConfig: (value: AppConfig) => void;
   setMessage: (value: string) => void;
@@ -478,6 +481,7 @@ function ConfigView({
     {
       title: "邮件通知",
       description: "配置 SMTP 后，流程完成时会发送候选域名报告。",
+      emailSettings: true,
       fields: [
         ["smtp_host", "SMTP 主机"],
         ["smtp_port", "SMTP 端口"],
@@ -506,6 +510,8 @@ function ConfigView({
               <RuntimePathsEditor config={config} setConfig={setConfig} />
             ) : "schedule" in group && group.schedule ? (
               <ScheduleEditor config={config} setConfig={setConfig} />
+            ) : "emailSettings" in group && group.emailSettings ? (
+              <EmailSettingsEditor config={config} onSaveConfig={onSaveConfig} setConfig={setConfig} setMessage={setMessage} />
             ) : (
               group.fields.map(([key, label]) => (
                 key === "availability_provider" ? (
@@ -536,6 +542,48 @@ function ConfigView({
       </button>
       {!hasDirectRunSource && <div className="hint">启动任务需要先添加并启用至少一个 Zone 来源；点击启动会弹出提示。</div>}
     </section>
+  );
+}
+
+function EmailSettingsEditor({
+  config,
+  onSaveConfig,
+  setConfig,
+  setMessage
+}: {
+  config: AppConfig;
+  onSaveConfig: () => Promise<AppConfig>;
+  setConfig: (value: AppConfig) => void;
+  setMessage: (value: string) => void;
+}) {
+  const fields = [
+    ["smtp_host", "SMTP 主机"],
+    ["smtp_port", "SMTP 端口"],
+    ["smtp_username", "SMTP 用户名"],
+    ["smtp_password", "SMTP 密码"],
+    ["smtp_use_tls", "启用 SMTP TLS"],
+    ["email_from", "发件人"],
+    ["email_to", "收件人"],
+    ["send_empty_report", "无结果时发送报告"]
+  ];
+
+  async function testEmail() {
+    await onSaveConfig();
+    await api<{ status: string }>("/api/config/test-email", { method: "POST" });
+    setMessage("测试邮件已发送");
+  }
+
+  return (
+    <>
+      {fields.map(([key, label]) => (
+        <ConfigField config={config} fieldKey={key} key={key} label={label} setConfig={setConfig} />
+      ))}
+      <div className="configActions">
+        <button type="button" className="secondaryButton" onClick={() => testEmail().catch((error) => setMessage(error.message))}>
+          测试发送
+        </button>
+      </div>
+    </>
   );
 }
 

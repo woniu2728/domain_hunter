@@ -404,6 +404,10 @@ th {
   overflow-wrap: anywhere;
 }
 
+.configActions {
+  grid-column: 1 / -1;
+}
+
 .zoneSources {
   grid-column: 1 / -1;
   display: grid;

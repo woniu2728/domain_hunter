@@ -10,6 +10,7 @@ from config import get_settings
 from database import Database
 from domain_hunter.types import AppConfig
 from filters import DefaultDomainFilter, filter_domains
+from notifier import send_test_email
 from scorer.ai_score import score_domains_for_config
 
 
@@ -63,6 +64,20 @@ async def update_config(payload: dict) -> dict:
     config = await ConfigService(db).update_config(payload)
     await scheduler_service.reload(config)
     return config.masked()
+
+
+@app.post("/api/config/test-email")
+async def test_email() -> dict[str, str]:
+    db = _db()
+    await db.init()
+    config = await ConfigService(db).get_config()
+    try:
+        await send_test_email(config)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"测试邮件发送失败：{exc}") from exc
+    return {"status": "sent"}
 
 
 @app.get("/api/stats")

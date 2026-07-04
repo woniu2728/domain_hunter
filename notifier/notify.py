@@ -51,6 +51,24 @@ def _send_email(
         smtp.send_message(message)
 
 
+async def send_test_email(config: AppConfig) -> None:
+    if not _email_configured(config):
+        raise ValueError("请先配置 SMTP 主机、发件人和收件人。")
+
+    message = EmailMessage()
+    message["Subject"] = "Domain Hunter - Test Email"
+    message["From"] = config.email_from
+    message["To"] = config.email_to
+    message.set_content("这是一封 Domain Hunter 测试邮件。")
+
+    with smtplib.SMTP(config.smtp_host, config.smtp_port, timeout=20) as smtp:
+        if config.smtp_use_tls:
+            smtp.starttls()
+        if config.smtp_username:
+            smtp.login(config.smtp_username, config.smtp_password)
+        smtp.send_message(message)
+
+
 def _plain_text(scores: list[ScoreResult], history_by_domain: dict[str, HistoryResult]) -> str:
     if not scores:
         return "No clean available candidates found."
