@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.services.config_service import ConfigService
 from backend.services.pipeline_service import PipelineService
+from backend.services.scheduler_service import scheduler_service
 from config import get_settings
 from database import Database
 from domain_hunter.types import AppConfig
@@ -32,7 +33,15 @@ def _db() -> Database:
 
 @app.on_event("startup")
 async def startup() -> None:
-    await _db().init()
+    db = _db()
+    await db.init()
+    await scheduler_service.start(_db)
+    await scheduler_service.reload()
+
+
+@app.on_event("shutdown")
+async def shutdown() -> None:
+    scheduler_service.shutdown()
 
 
 @app.get("/api/health")
@@ -52,6 +61,7 @@ async def update_config(payload: dict) -> dict:
     db = _db()
     await db.init()
     config = await ConfigService(db).update_config(payload)
+    await scheduler_service.reload(config)
     return config.masked()
 
 

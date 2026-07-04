@@ -13,7 +13,7 @@
 - Availability 查询：默认 `mock`，可切到 Verisign RDAP。
 - Wayback 历史检查：采样 CDX 结果并标记常见垃圾关键词。
 - 通知：配置 SMTP 后发送邮件，否则输出 Rich 表格。
-- APScheduler 定时入口。
+- Web 服务内置 APScheduler 定时运行。
 - Docker Compose 单机部署。
 
 ## 安装
@@ -49,6 +49,8 @@ python app.py run --yesterday-zone data/com-zone-yesterday.txt --today-zone data
 ```powershell
 python app.py schedule --hour 2 --minute 0
 ```
+
+Docker/API 服务启动后会自动读取前端 Config 页面里的定时任务配置；启用后无需手动执行上面的 CLI 命令，服务会按配置每天运行。保存配置后，后端会立即重载定时任务。
 
 启动后端 API：
 
@@ -111,7 +113,7 @@ docker compose down
 - Wayback 开关与超时。
 - 候选数量与最低分。
 - SMTP 邮件配置。
-- 定时任务配置。
+- 定时任务配置；Docker/API 服务启动时自动加载，保存后自动重载。
 
 ## 目录
 
