@@ -3,7 +3,7 @@ from __future__ import annotations
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from backend.services.config_service import ConfigService
-from backend.services.pipeline_service import PipelineService
+from backend.services.job_runner_service import job_runner_service
 from database import Database
 from domain_hunter.types import AppConfig
 
@@ -50,13 +50,10 @@ class SchedulerService:
             return
         db: Database = self.db_factory()
         await db.init()
-        if await db.has_running_job():
-            return
         config = await ConfigService(db).get_config()
         if not config.schedule_enabled or not _has_enabled_zone_source(config.zone_sources):
             return
-        job_id = await db.create_job("schedule")
-        await PipelineService(db, config).run(source="schedule", create_job=False, job_id=job_id)
+        await job_runner_service.start_if_idle(source="schedule")
 
 
 def _has_enabled_zone_source(sources: list[dict]) -> bool:

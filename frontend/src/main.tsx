@@ -85,6 +85,7 @@ const STATUS_LABELS: Record<string, string> = {
   deleted: "已删除",
   preview: "临时预览",
   running: "运行中",
+  cancelled: "已取消",
   success: "成功",
   failed: "失败"
 };
@@ -231,6 +232,11 @@ function App() {
   }
 
   async function startJobFromConfig() {
+    const hasZoneSource = Boolean(config.zone_sources?.some((source) => source.enabled && source.tld && source.zone_url));
+    if (!hasZoneSource) {
+      window.alert("请先在配置中添加并启用至少一个 Zone 来源。");
+      return;
+    }
     await saveConfig();
     await runJob();
   }
@@ -485,13 +491,12 @@ function ConfigView({
       ))}
       <button
         className="save"
-        disabled={hasRunningJob || !hasDirectRunSource}
         onClick={() => onStartJob().catch((error) => setMessage(error.message))}
       >
         <Play size={18} />
-        {hasRunningJob ? "任务运行中" : "启动任务"}
+        {hasRunningJob ? "按当前配置重启任务" : "启动任务"}
       </button>
-      {!hasDirectRunSource && <div className="hint">启动任务需要先添加并启用至少一个 Zone 来源。</div>}
+      {!hasDirectRunSource && <div className="hint">启动任务需要先添加并启用至少一个 Zone 来源；点击启动会弹出提示。</div>}
     </section>
   );
 }

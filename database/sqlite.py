@@ -305,6 +305,34 @@ class Database:
             row = (await db.execute_fetchall("SELECT COUNT(*) FROM jobs WHERE status = 'running'"))[0]
         return int(row[0]) > 0
 
+    async def cancel_running_jobs(self, reason: str) -> None:
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                """
+                UPDATE jobs
+                SET status = 'cancelled',
+                    finished_at = CURRENT_TIMESTAMP,
+                    error = ?
+                WHERE status = 'running'
+                """,
+                (reason,),
+            )
+            await db.commit()
+
+    async def cancel_job_if_running(self, job_id: int, reason: str) -> None:
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                """
+                UPDATE jobs
+                SET status = 'cancelled',
+                    finished_at = CURRENT_TIMESTAMP,
+                    error = ?
+                WHERE id = ? AND status = 'running'
+                """,
+                (reason, job_id),
+            )
+            await db.commit()
+
     async def finish_job(
         self,
         job_id: int,

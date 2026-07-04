@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
-
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.services.config_service import ConfigService
-from backend.services.pipeline_service import PipelineService
+from backend.services.job_runner_service import job_runner_service
 from backend.services.scheduler_service import scheduler_service
 from config import get_settings
 from database import Database
@@ -35,12 +33,14 @@ def _db() -> Database:
 async def startup() -> None:
     db = _db()
     await db.init()
+    job_runner_service.start(_db)
     await scheduler_service.start(_db)
     await scheduler_service.reload()
 
 
 @app.on_event("shutdown")
 async def shutdown() -> None:
+    await job_runner_service.shutdown()
     scheduler_service.shutdown()
 
 
@@ -133,43 +133,12 @@ async def job(job_id: int) -> dict:
 
 
 @app.post("/api/jobs/run")
-async def run_job(background_tasks: BackgroundTasks, payload: dict | None = None) -> dict:
-    db = _db()
-    await db.init()
-    if await db.has_running_job():
-        raise HTTPException(status_code=409, detail="已有任务正在运行，请等待完成后再启动。")
-    config = await ConfigService(db).get_config()
-    if not _has_enabled_zone_source(config.zone_sources):
-        raise HTTPException(status_code=400, detail="请先在配置中添加启用的 Zone 来源。")
-    job_id = await db.create_job("api")
-    background_tasks.add_task(_run_background_job, job_id, payload or {})
+async def run_job(payload: dict | None = None) -> dict:
+    try:
+        job_id = await job_runner_service.restart(source="api", payload=payload or {})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"job_id": job_id, "status": "running"}
-
-
-async def _run_background_job(job_id: int, payload: dict) -> None:
-    db = _db()
-    await db.init()
-    config = await ConfigService(db).get_config()
-    service = PipelineService(db, config)
-    deleted_file = Path(payload["deleted_file"]) if payload.get("deleted_file") else None
-    await service.run(
-        deleted_file=deleted_file,
-        source="api",
-        top=_optional_int(payload.get("top")),
-        min_score=_optional_int(payload.get("min_score")),
-        create_job=False,
-        job_id=job_id,
-    )
-
-
-def _optional_int(value: object) -> int | None:
-    if value is None or value == "":
-        return None
-    return int(value)
-
-
-def _has_enabled_zone_source(sources: list[dict]) -> bool:
-    return any(source.get("enabled") and source.get("tld") and source.get("zone_url") for source in sources)
 
 
 def _preview_config(payload: dict) -> AppConfig:

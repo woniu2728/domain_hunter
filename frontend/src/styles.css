@@ -228,6 +228,11 @@ th {
   color: #7d5a00;
 }
 
+.pill.cancelled {
+  background: #e8edf2;
+  color: #56616b;
+}
+
 .search {
   display: inline-flex;
   align-items: center;
