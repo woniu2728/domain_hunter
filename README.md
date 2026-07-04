@@ -94,6 +94,7 @@ docker compose down
 ```
 
 运行数据会保存在 `runtime/`，包括 SQLite、data、cache。
+任务运行时，如果当天 Zone 文件已存在且能解析出该后缀域名，会复用本地文件并跳过下载。
 
 ## 配置
 

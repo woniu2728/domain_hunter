@@ -168,7 +168,8 @@ async def load_deleted_from_zone_sources(config: AppConfig, data_dir: Path) -> s
         tld = source["tld"]
         today_path = _zone_path(data_dir, tld, today, source["zone_url"])
         yesterday_path = _matching_yesterday_path(data_dir, tld, yesterday)
-        await download_zone(source["zone_url"], today_path, source.get("bearer_token") or None)
+        if not _valid_zone_file(today_path, tld):
+            await download_zone(source["zone_url"], today_path, source.get("bearer_token") or None)
         if not yesterday_path:
             continue
         today_domains = load_zone_domains(today_path, tld=tld)
@@ -205,6 +206,15 @@ def _matching_yesterday_path(data_dir: Path, tld: str, day: date) -> Path | None
         if path.exists():
             return path
     return None
+
+
+def _valid_zone_file(path: Path, tld: str) -> bool:
+    if not path.exists() or not path.is_file():
+        return False
+    try:
+        return bool(load_zone_domains(path, tld=tld))
+    except Exception:
+        return False
 
 
 def _domain_label(domain: str) -> str:
