@@ -52,6 +52,7 @@ nav {
 
 nav button,
 .toolbar button,
+.taskButton,
 .save,
 .iconButton {
   border: 0;
@@ -166,7 +167,7 @@ h2 {
 }
 
 .toolbar button,
-.taskActions button,
+.taskButton,
 .save {
   display: inline-flex;
   align-items: center;
@@ -176,15 +177,14 @@ h2 {
   padding: 11px 15px;
 }
 
-.toolbar button.secondaryAction,
-.taskActions button.secondaryAction {
+.toolbar button.secondaryAction {
   background: #ffffff;
   color: #20242a;
   border: 1px solid #cbd4dd;
 }
 
 .toolbar button:disabled,
-.taskActions button:disabled {
+.taskButton:disabled {
   cursor: not-allowed;
   background: #9aa7b2;
   border-color: #9aa7b2;
@@ -486,8 +486,13 @@ th {
   padding: 0 14px;
 }
 
-.save {
+.save,
+.taskButton {
   width: fit-content;
+  border-radius: 8px;
+}
+
+.save {
   position: sticky;
   bottom: 18px;
 }

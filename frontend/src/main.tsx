@@ -313,7 +313,7 @@ function Dashboard({
         <h2>最近任务</h2>
         <div className="taskActions">
           <button
-            className="secondaryAction"
+            className="taskButton"
             disabled={!hasRunningJob}
             onClick={() => onStopJob().catch((error) => window.alert(error.message))}
             type="button"
@@ -322,6 +322,7 @@ function Dashboard({
             停止任务
           </button>
           <button
+            className="taskButton"
             onClick={() => onRestartJob().catch((error) => window.alert(error.message))}
             type="button"
           >
