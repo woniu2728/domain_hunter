@@ -502,11 +502,6 @@ th {
   border-radius: 8px;
 }
 
-.save {
-  position: sticky;
-  bottom: 18px;
-}
-
 .notice {
   background: #fff8df;
   border: 1px solid #f0d98c;
