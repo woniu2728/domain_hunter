@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Activity, Database, Play, RefreshCw, Search, Settings } from "lucide-react";
+import { Activity, Database, Folder, Play, RefreshCw, Search, Settings } from "lucide-react";
 import "./styles.css";
 
 type View = "dashboard" | "candidates" | "config";
@@ -675,31 +675,34 @@ function EmailSettingsEditor({
 }
 
 function RuntimePathsEditor({ config, setConfig }: { config: AppConfig; setConfig: (value: AppConfig) => void }) {
+  const derivedPaths = [
+    ["数据库", String(config.database_url ?? "")],
+    ["数据", String(config.data_dir ?? "")],
+    ["缓存", String(config.cache_dir ?? "")]
+  ];
+
   return (
-    <>
-      <label>
-        <span>运行目录</span>
+    <div className="runtimePaths">
+      <label className="runtimeInput">
+        <span>
+          <Folder size={16} />
+          运行目录
+        </span>
         <input
           value={String(config.runtime_dir ?? "runtime")}
           onChange={(event) => setConfig({ ...config, runtime_dir: event.target.value })}
           placeholder="runtime"
         />
       </label>
-      <div className="derivedPaths">
-        <div>
-          <span>数据库路径</span>
-          <strong>{String(config.database_url ?? "")}</strong>
-        </div>
-        <div>
-          <span>数据目录</span>
-          <strong>{String(config.data_dir ?? "")}</strong>
-        </div>
-        <div>
-          <span>缓存目录</span>
-          <strong>{String(config.cache_dir ?? "")}</strong>
-        </div>
+      <div className="derivedPaths" aria-label="自动生成路径">
+        {derivedPaths.map(([label, value]) => (
+          <div className="derivedPath" key={label}>
+            <span>{label}</span>
+            <strong title={value}>{value}</strong>
+          </div>
+        ))}
       </div>
-    </>
+    </div>
   );
 }
 
