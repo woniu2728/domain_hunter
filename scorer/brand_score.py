@@ -52,7 +52,7 @@ VOWELS = set("aeiou")
 
 
 def score_domain(domain: str) -> ScoreResult:
-    label = domain.lower().removesuffix(".com")
+    label = domain.lower().rsplit(".", 1)[0]
     brand_score = 0
     dictionary_score = 0
     trend_score = 0

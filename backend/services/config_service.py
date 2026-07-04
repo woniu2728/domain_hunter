@@ -8,7 +8,7 @@ from database import Database
 from domain_hunter.types import AppConfig
 
 
-SECRET_KEYS = {"smtp_password", "czds_bearer_token"}
+SECRET_KEYS = {"smtp_password"}
 
 
 class ConfigService:
@@ -43,6 +43,9 @@ class ConfigService:
                 continue
             if key in SECRET_KEYS and (value is None or value == "" or value == "********"):
                 continue
+            if key == "zone_sources":
+                updates[key] = _merge_zone_sources(value, current.zone_sources)
+                continue
             coerced = _coerce_value(key, value, current_data[key])
             if key in RUNTIME_SETTING_KEYS:
                 runtime_updates[key] = str(coerced)
@@ -63,4 +66,37 @@ def _coerce_value(key: str, value: Any, current_value: Any) -> Any:
         return str(value).strip().lower() in {"1", "true", "yes", "on"}
     if isinstance(current_value, int):
         return int(value)
+    if isinstance(current_value, list):
+        return value if isinstance(value, list) else []
+    if isinstance(current_value, dict):
+        return value if isinstance(value, dict) else {}
     return "" if value is None else str(value)
+
+
+def _merge_zone_sources(value: Any, current_sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    current_by_tld = {
+        str(source.get("tld", "")).strip().lower().lstrip("."): source
+        for source in current_sources
+        if source.get("tld")
+    }
+    merged: list[dict[str, Any]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        tld = str(item.get("tld", "")).strip().lower().lstrip(".")
+        if not tld:
+            continue
+        bearer_token = str(item.get("bearer_token", ""))
+        if bearer_token == "********":
+            bearer_token = str(current_by_tld.get(tld, {}).get("bearer_token", ""))
+        merged.append(
+            {
+                "tld": tld,
+                "zone_url": str(item.get("zone_url", "")).strip(),
+                "bearer_token": bearer_token,
+                "enabled": bool(item.get("enabled", True)),
+            }
+        )
+    return merged

@@ -338,6 +338,10 @@ def _setting_type(value: Any) -> str:
         return "bool"
     if isinstance(value, int):
         return "int"
+    if isinstance(value, list):
+        return "json"
+    if isinstance(value, dict):
+        return "json"
     return "str"
 
 
@@ -347,6 +351,8 @@ def _decode_setting(value: str, value_type: str) -> Any:
         return bool(decoded)
     if value_type == "int":
         return int(decoded)
+    if value_type == "json":
+        return decoded
     return str(decoded)
 
 

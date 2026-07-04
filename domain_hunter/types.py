@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
@@ -46,11 +46,9 @@ class AppConfig:
     database_url: str = "runtime/database/domain_hunter.sqlite3"
     data_dir: str = "runtime/data"
     cache_dir: str = "runtime/cache"
-    czds_zone_url: str = ""
-    czds_bearer_token: str = ""
+    zone_sources: list[dict[str, Any]] = field(default_factory=list)
     filter_min_length: int = 4
     filter_max_length: int = 12
-    filter_com_only: bool = True
     filter_letters_only: bool = True
     filter_require_vowel: bool = True
     filter_no_digits: bool = True
@@ -77,9 +75,13 @@ class AppConfig:
 
     def masked(self) -> dict[str, Any]:
         data = self.__dict__.copy()
-        for key in ("smtp_password", "czds_bearer_token"):
+        for key in ("smtp_password",):
             if data.get(key):
                 data[key] = "********"
+        data["zone_sources"] = [
+            {**source, "bearer_token": "********" if source.get("bearer_token") else ""}
+            for source in self.zone_sources
+        ]
         return data
 
 

@@ -2,13 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Iterable, Protocol
-import re
 
 
 VOWELS = set("aeiou")
-DOMAIN_RE = re.compile(r"^[a-z]+\.com$")
-
-
 class Filter(Protocol):
     def match(self, domain: str) -> bool:
         ...
@@ -18,7 +14,7 @@ class Filter(Protocol):
 class DefaultDomainFilter:
     min_length: int = 4
     max_length: int = 12
-    com_only: bool = True
+    allowed_tlds: tuple[str, ...] = ("com",)
     letters_only: bool = True
     require_vowel: bool = True
     no_digits: bool = True
@@ -27,10 +23,12 @@ class DefaultDomainFilter:
 
     def match(self, domain: str) -> bool:
         value = domain.lower().strip()
-        if self.com_only and not value.endswith(".com"):
+        label, tld = _split_domain(value)
+        if not label or not tld:
+            return False
+        if self.allowed_tlds and tld not in self.allowed_tlds:
             return False
 
-        label = value.removesuffix(".com") if value.endswith(".com") else value.split(".", 1)[0]
         if not (self.min_length <= len(label) <= self.max_length):
             return False
         if self.letters_only and not label.isalpha():
@@ -46,6 +44,13 @@ class DefaultDomainFilter:
         ):
             return False
         return True
+
+
+def _split_domain(value: str) -> tuple[str, str]:
+    if "." not in value:
+        return "", ""
+    label, tld = value.rsplit(".", 1)
+    return label, tld
 
 
 def _has_consecutive_consonants(label: str, limit: int) -> bool:

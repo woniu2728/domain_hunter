@@ -36,7 +36,17 @@ type Job = {
   total_available: number;
 };
 
-type Config = Record<string, string | number | boolean>;
+type ConfigValue = string | number | boolean | ZoneSource[] | undefined;
+type Config = Record<string, ConfigValue>;
+type ZoneSource = {
+  tld: string;
+  zone_url: string;
+  bearer_token: string;
+  enabled: boolean;
+};
+type AppConfig = Config & {
+  zone_sources?: ZoneSource[];
+};
 
 const API = "";
 const VIEW_TITLES: Record<View, string> = {
@@ -64,7 +74,7 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 
 const ERROR_LABELS: Record<string, string> = {
-  "Provide deleted_file or both today_zone and yesterday_zone.": "请先上传已删除域名列表，或在配置中填写 CZDS Zone 地址。"
+  "Provide deleted_file or both today_zone and yesterday_zone.": "请先上传已删除域名列表，或在配置中添加启用的 Zone 来源。"
 };
 
 function App() {
@@ -72,19 +82,19 @@ function App() {
   const [stats, setStats] = useState<Stats>({ domains: 0, available: 0, spam: 0, jobs: 0 });
   const [jobs, setJobs] = useState<Job[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [config, setConfig] = useState<Config>({});
+  const [config, setConfig] = useState<AppConfig>({});
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [message, setMessage] = useState("");
   const hasRunningJob = jobs.some((job) => job.status === "running");
-  const hasDirectRunSource = Boolean(config.czds_zone_url);
+  const hasDirectRunSource = Boolean(config.zone_sources?.some((source) => source.enabled && source.tld && source.zone_url));
 
   async function loadAll() {
     const [statsData, jobsData, candidatesData, configData] = await Promise.all([
       api<Stats>("/api/stats"),
       api<Job[]>("/api/jobs"),
       api<Candidate[]>(`/api/domains?limit=100${status ? `&status=${status}` : ""}${search ? `&search=${encodeURIComponent(search)}` : ""}`),
-      api<Config>("/api/config")
+      api<AppConfig>("/api/config")
     ]);
     setStats(statsData);
     setJobs(jobsData);
@@ -132,7 +142,7 @@ function App() {
         <header className="topbar">
           <div>
             <h1>{titleFor(view)}</h1>
-            <p>已删除 .com 域名发现流程</p>
+            <p>已删除域名发现流程</p>
           </div>
           <button className="iconButton" onClick={() => loadAll().catch((error) => setMessage(error.message))} title="刷新">
             <RefreshCw size={18} />
@@ -213,7 +223,7 @@ function Dashboard({
       </div>
       <div className="hint">
         流程会读取已删除域名来源，依次执行规则过滤、品牌评分、可注册查询、Wayback 历史检查和邮件通知。
-        {!hasDirectRunSource && " 从 CZDS 运行需要先在配置中填写 CZDS Zone 地址；没有配置时请上传已删除域名列表。"}
+        {!hasDirectRunSource && " 从 CZDS 运行需要先在配置中添加启用的 Zone 来源；没有配置时请上传已删除域名列表。"}
       </div>
       <h2>高分候选</h2>
       <CandidateTable candidates={candidates.slice(0, 10)} />
@@ -267,14 +277,14 @@ function Jobs({
       </div>
       <div className="hint">
         流程会读取已删除域名来源，依次执行规则过滤、品牌评分、可注册查询、Wayback 历史检查和邮件通知。
-        {!hasDirectRunSource && " 从 CZDS 运行需要 CZDS Zone 地址；没有配置时请使用上传入口。"}
+        {!hasDirectRunSource && " 从 CZDS 运行需要启用的 Zone 来源；没有配置时请使用上传入口。"}
       </div>
       <JobTable jobs={jobs} />
     </section>
   );
 }
 
-function ConfigView({ config, setConfig, setMessage }: { config: Config; setConfig: (value: Config) => void; setMessage: (value: string) => void }) {
+function ConfigView({ config, setConfig, setMessage }: { config: AppConfig; setConfig: (value: AppConfig) => void; setMessage: (value: string) => void }) {
   const groups = [
     {
       title: "运行路径",
@@ -288,11 +298,9 @@ function ConfigView({ config, setConfig, setMessage }: { config: Config; setConf
     },
     {
       title: "数据源",
-      description: "CZDS 用于从 Zone 文件来源启动完整流程；也可以在仪表盘上传已删除域名列表。",
-      fields: [
-        ["czds_zone_url", "CZDS Zone 地址"],
-        ["czds_bearer_token", "CZDS Bearer Token"]
-      ]
+      description: "可配置多个后缀的 Zone 来源。运行时会下载启用来源；有对应昨日 Zone 文件才计算差分，没有则跳过。",
+      zoneSources: true,
+      fields: []
     },
     {
       title: "域名过滤规则",
@@ -300,7 +308,6 @@ function ConfigView({ config, setConfig, setMessage }: { config: Config; setConf
       fields: [
         ["filter_min_length", "最小长度"],
         ["filter_max_length", "最大长度"],
-        ["filter_com_only", "仅允许 .com"],
         ["filter_letters_only", "仅允许字母"],
         ["filter_require_vowel", "要求至少一个元音"],
         ["filter_no_digits", "拒绝数字"],
@@ -347,7 +354,7 @@ function ConfigView({ config, setConfig, setMessage }: { config: Config; setConf
   ] as const;
 
   async function save() {
-    const saved = await api<Config>("/api/config", {
+    const saved = await api<AppConfig>("/api/config", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(config)
@@ -365,9 +372,13 @@ function ConfigView({ config, setConfig, setMessage }: { config: Config; setConf
             <p>{group.description}</p>
           </div>
           <div className="configGrid">
-            {group.fields.map(([key, label]) => (
-              <ConfigField config={config} fieldKey={key} key={key} label={label} setConfig={setConfig} />
-            ))}
+            {"zoneSources" in group && group.zoneSources ? (
+              <ZoneSourcesEditor config={config} setConfig={setConfig} />
+            ) : (
+              group.fields.map(([key, label]) => (
+                <ConfigField config={config} fieldKey={key} key={key} label={label} setConfig={setConfig} />
+              ))
+            )}
           </div>
         </section>
       ))}
@@ -385,10 +396,10 @@ function ConfigField({
   label,
   setConfig
 }: {
-  config: Config;
+  config: AppConfig;
   fieldKey: string;
   label: string;
-  setConfig: (value: Config) => void;
+  setConfig: (value: AppConfig) => void;
 }) {
   return (
     <label>
@@ -412,6 +423,58 @@ function ConfigField({
         />
       )}
     </label>
+  );
+}
+
+function ZoneSourcesEditor({ config, setConfig }: { config: AppConfig; setConfig: (value: AppConfig) => void }) {
+  const sources = config.zone_sources ?? [];
+
+  function updateSource(index: number, patch: Partial<ZoneSource>) {
+    setConfig({
+      ...config,
+      zone_sources: sources.map((source, itemIndex) => (itemIndex === index ? { ...source, ...patch } : source))
+    });
+  }
+
+  function addSource() {
+    setConfig({
+      ...config,
+      zone_sources: [...sources, { tld: "", zone_url: "", bearer_token: "", enabled: true }]
+    });
+  }
+
+  function removeSource(index: number) {
+    setConfig({
+      ...config,
+      zone_sources: sources.filter((_, itemIndex) => itemIndex !== index)
+    });
+  }
+
+  return (
+    <div className="zoneSources">
+      <div className="zoneHeader">
+        <span>启用</span>
+        <span>后缀</span>
+        <span>Zone 地址</span>
+        <span>Bearer Token</span>
+        <span>操作</span>
+      </div>
+      {sources.map((source, index) => (
+        <div className="zoneRow" key={`${source.tld}-${index}`}>
+          <input type="checkbox" checked={source.enabled} onChange={(event) => updateSource(index, { enabled: event.target.checked })} />
+          <input value={source.tld} onChange={(event) => updateSource(index, { tld: event.target.value })} placeholder="com" />
+          <input value={source.zone_url} onChange={(event) => updateSource(index, { zone_url: event.target.value })} placeholder="https://..." />
+          <input
+            type="password"
+            value={source.bearer_token ?? ""}
+            onChange={(event) => updateSource(index, { bearer_token: event.target.value })}
+            placeholder="可选"
+          />
+          <button type="button" onClick={() => removeSource(index)}>删除</button>
+        </div>
+      ))}
+      <button className="secondaryButton" type="button" onClick={addSource}>添加后缀来源</button>
+    </div>
   );
 }
 

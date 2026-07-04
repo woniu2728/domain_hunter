@@ -91,8 +91,8 @@ async def run_job(background_tasks: BackgroundTasks, payload: dict | None = None
     if await db.has_running_job():
         raise HTTPException(status_code=409, detail="已有任务正在运行，请等待完成后再启动。")
     config = await ConfigService(db).get_config()
-    if not config.czds_zone_url:
-        raise HTTPException(status_code=400, detail="请先上传已删除域名列表，或在配置中填写 CZDS Zone 地址。")
+    if not _has_enabled_zone_source(config.zone_sources):
+        raise HTTPException(status_code=400, detail="请先上传已删除域名列表，或在配置中添加启用的 Zone 来源。")
     job_id = await db.create_job("api")
     background_tasks.add_task(_run_background_job, job_id, payload or {})
     return {"job_id": job_id, "status": "running"}
@@ -142,3 +142,7 @@ def _optional_int(value: object) -> int | None:
     if value is None or value == "":
         return None
     return int(value)
+
+
+def _has_enabled_zone_source(sources: list[dict]) -> bool:
+    return any(source.get("enabled") and source.get("tld") and source.get("zone_url") for source in sources)

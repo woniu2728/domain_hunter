@@ -331,6 +331,53 @@ th {
   height: 20px;
 }
 
+.zoneSources {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 10px;
+}
+
+.zoneHeader,
+.zoneRow {
+  display: grid;
+  grid-template-columns: 64px 100px minmax(240px, 1fr) minmax(180px, 260px) 82px;
+  gap: 10px;
+  align-items: center;
+}
+
+.zoneHeader {
+  color: #56616b;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.zoneRow input {
+  height: 38px;
+  border: 1px solid #cbd4dd;
+  border-radius: 7px;
+  padding: 0 10px;
+}
+
+.zoneRow input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+}
+
+.zoneRow button,
+.secondaryButton {
+  height: 38px;
+  border: 1px solid #cbd4dd;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #20242a;
+  cursor: pointer;
+}
+
+.secondaryButton {
+  width: fit-content;
+  padding: 0 14px;
+}
+
 .save {
   width: fit-content;
   position: sticky;
@@ -362,5 +409,16 @@ th {
   .metrics,
   .configGrid {
     grid-template-columns: 1fr;
+  }
+
+  .zoneHeader {
+    display: none;
+  }
+
+  .zoneRow {
+    grid-template-columns: 1fr;
+    border: 1px solid #e4e9ee;
+    border-radius: 8px;
+    padding: 10px;
   }
 }

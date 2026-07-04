@@ -1,10 +1,10 @@
 # domain_hunter
 
-根据 `Python_域名发现系统设计.md` 实现的 Python 域名发现系统 MVP，用于从 `.com` zone 差分或已删除域名列表中筛选、评分、查询可注册状态，并进行 Wayback 历史检查和通知。
+根据 `Python_域名发现系统设计.md` 实现的 Python 域名发现系统 MVP，用于从多个后缀的 Zone 差分或已删除域名列表中筛选、评分、查询可注册状态，并进行 Wayback 历史检查和通知。
 
 ## 功能
 
-- 支持 `.com` Zone 文件差分：昨天集合减今天集合。
+- 支持多个后缀的 Zone 文件差分：昨天集合减今天集合。
 - 插件式过滤：长度 4-12、仅字母、无数字、无连字符、至少一个元音、无连续四个辅音。
 - 品牌评分：短域名、纯字母、AI 关键词、字典词、可发音、双词组合等规则。
 - SQLite 落库：`domains`、`score`、`history`。
@@ -106,7 +106,7 @@ docker compose down
 业务配置会存入后端 SQLite `settings` 表，也可在前端 Config 页面维护：
 
 - 数据库路径、数据目录、缓存目录。
-- CZDS Zone URL 与 Bearer Token。
+- 多个后缀的 Zone 来源、Bearer Token 和启用状态。
 - Availability 并发与超时。
 - Wayback 开关与超时。
 - 候选数量与最低分。

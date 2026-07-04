@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
+from urllib.parse import urlparse
 
 from checker import check_availability, check_history
 from config import get_settings
@@ -101,8 +102,8 @@ class PipelineService:
         candidates = [
             DomainCandidate(
                 domain=score.domain,
-                tld="com",
-                length=len(score.domain.removesuffix(".com")),
+                tld=_domain_tld(score.domain),
+                length=len(_domain_label(score.domain)),
                 deleted_date=date.today(),
             )
             for score in scores
@@ -114,13 +115,21 @@ class PipelineService:
         return DefaultDomainFilter(
             min_length=self.config.filter_min_length,
             max_length=self.config.filter_max_length,
-            com_only=self.config.filter_com_only,
+            allowed_tlds=self._allowed_tlds(),
             letters_only=self.config.filter_letters_only,
             require_vowel=self.config.filter_require_vowel,
             no_digits=self.config.filter_no_digits,
             no_hyphen=self.config.filter_no_hyphen,
             max_consecutive_consonants=self.config.filter_max_consecutive_consonants,
         )
+
+    def _allowed_tlds(self) -> tuple[str, ...]:
+        enabled_tlds = tuple(
+            str(source.get("tld", "")).strip().lower().lstrip(".")
+            for source in self.config.zone_sources
+            if source.get("enabled") and source.get("tld")
+        )
+        return tuple(tld for tld in enabled_tlds if tld)
 
 
 async def load_deleted_domains(
@@ -142,11 +151,63 @@ async def load_deleted_domains(
         yesterday = load_zone_domains(yesterday_zone)
         return diff_deleted_domains(yesterday, today)
 
-    if config.czds_zone_url:
-        today_path = settings.data_dir / f"com-zone-{date.today().isoformat()}.txt"
-        await download_zone(config.czds_zone_url, today_path, config.czds_bearer_token or None)
-        raise ValueError(
-            "Downloaded today's zone. Provide yesterday zone or run with deleted_file after computing a diff."
-        )
+    deleted_from_sources = await load_deleted_from_zone_sources(config, settings.data_dir)
+    if deleted_from_sources:
+        return deleted_from_sources
 
-    raise ValueError("Provide deleted_file or both today_zone and yesterday_zone.")
+    return set()
+
+
+async def load_deleted_from_zone_sources(config: AppConfig, data_dir: Path) -> set[str]:
+    deleted: set[str] = set()
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+    for source in _enabled_zone_sources(config):
+        tld = source["tld"]
+        today_path = _zone_path(data_dir, tld, today, source["zone_url"])
+        yesterday_path = _matching_yesterday_path(data_dir, tld, yesterday)
+        await download_zone(source["zone_url"], today_path, source.get("bearer_token") or None)
+        if not yesterday_path:
+            continue
+        today_domains = load_zone_domains(today_path, tld=tld)
+        yesterday_domains = load_zone_domains(yesterday_path, tld=tld)
+        deleted.update(diff_deleted_domains(yesterday_domains, today_domains))
+    return deleted
+
+
+def _enabled_zone_sources(config: AppConfig) -> list[dict[str, str]]:
+    sources: list[dict[str, str]] = []
+    for source in config.zone_sources:
+        tld = str(source.get("tld", "")).strip().lower().lstrip(".")
+        zone_url = str(source.get("zone_url", "")).strip()
+        if source.get("enabled") and tld and zone_url:
+            sources.append(
+                {
+                    "tld": tld,
+                    "zone_url": zone_url,
+                    "bearer_token": str(source.get("bearer_token", "")),
+                }
+            )
+    return sources
+
+
+def _zone_path(data_dir: Path, tld: str, day: date, zone_url: str) -> Path:
+    suffix = ".gz" if urlparse(zone_url).path.lower().endswith(".gz") else ".txt"
+    return data_dir / "zones" / tld / f"{day.isoformat()}{suffix}"
+
+
+def _matching_yesterday_path(data_dir: Path, tld: str, day: date) -> Path | None:
+    base = data_dir / "zones" / tld
+    for suffix in (".txt", ".gz"):
+        path = base / f"{day.isoformat()}{suffix}"
+        if path.exists():
+            return path
+    return None
+
+
+def _domain_label(domain: str) -> str:
+    return domain.rsplit(".", 1)[0]
+
+
+def _domain_tld(domain: str) -> str:
+    return domain.rsplit(".", 1)[1] if "." in domain else ""

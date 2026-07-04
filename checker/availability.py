@@ -33,7 +33,7 @@ async def _check_rdap(
     semaphore: asyncio.Semaphore,
     domain: str,
 ) -> AvailabilityResult:
-    url = f"https://rdap.verisign.com/com/v1/domain/{domain}"
+    url = f"https://rdap.org/domain/{domain}"
     async with semaphore:
         try:
             response = await client.get(url)
