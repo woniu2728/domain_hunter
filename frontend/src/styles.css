@@ -1,0 +1,320 @@
+:root {
+  color: #20242a;
+  background: #f4f6f8;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+.app {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 232px 1fr;
+}
+
+.sidebar {
+  background: #17202a;
+  color: #f7fafc;
+  padding: 24px 16px;
+}
+
+.brand {
+  font-size: 19px;
+  font-weight: 700;
+  margin-bottom: 28px;
+}
+
+nav {
+  display: grid;
+  gap: 8px;
+}
+
+nav button,
+.toolbar button,
+.save,
+.upload,
+.iconButton {
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+nav button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #dce4ea;
+  background: transparent;
+  padding: 11px 12px;
+  text-align: left;
+}
+
+nav button.active,
+nav button:hover {
+  background: #243342;
+  color: #ffffff;
+}
+
+main {
+  padding: 28px;
+  overflow: auto;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 22px;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 26px;
+}
+
+h2 {
+  font-size: 17px;
+  margin-top: 8px;
+}
+
+.topbar p {
+  color: #69737d;
+  margin-top: 4px;
+}
+
+.iconButton {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  background: #ffffff;
+  color: #20242a;
+  border: 1px solid #d8dee5;
+}
+
+.stack {
+  display: grid;
+  gap: 18px;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(140px, 1fr));
+  gap: 14px;
+}
+
+.metric {
+  background: #ffffff;
+  border: 1px solid #dfe5eb;
+  border-radius: 8px;
+  padding: 18px;
+}
+
+.metric span {
+  color: #66717c;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.metric strong {
+  font-size: 30px;
+}
+
+.toolbar,
+.filters {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.toolbar button,
+.save {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #16736f;
+  color: #ffffff;
+  padding: 11px 15px;
+}
+
+.upload {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #cbd4dd;
+  color: #20242a;
+  padding: 10px 14px;
+}
+
+.upload input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.tableWrap {
+  overflow: auto;
+  background: #ffffff;
+  border: 1px solid #dfe5eb;
+  border-radius: 8px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+}
+
+th,
+td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #ecf0f3;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  color: #56616b;
+  font-size: 13px;
+  background: #fafbfc;
+}
+
+.pill {
+  display: inline-flex;
+  min-width: 78px;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 12px;
+  background: #edf1f4;
+  color: #49545e;
+}
+
+.pill.available,
+.pill.success {
+  background: #daf4e7;
+  color: #12633c;
+}
+
+.pill.failed,
+.pill.registered {
+  background: #fde2df;
+  color: #9a2d22;
+}
+
+.pill.running {
+  background: #fff0c2;
+  color: #7d5a00;
+}
+
+.search {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  border: 1px solid #cbd4dd;
+  border-radius: 8px;
+  padding: 0 10px;
+  height: 42px;
+}
+
+.search input,
+.filters select {
+  border: 0;
+  outline: 0;
+  background: transparent;
+}
+
+.filters select {
+  height: 42px;
+  background: #ffffff;
+  border: 1px solid #cbd4dd;
+  border-radius: 8px;
+  padding: 0 10px;
+}
+
+.configGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(240px, 1fr));
+  gap: 14px;
+  max-width: 980px;
+}
+
+.configGrid label {
+  background: #ffffff;
+  border: 1px solid #dfe5eb;
+  border-radius: 8px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.configGrid label span {
+  color: #56616b;
+  font-size: 13px;
+}
+
+.configGrid input {
+  height: 38px;
+  border: 1px solid #cbd4dd;
+  border-radius: 7px;
+  padding: 0 10px;
+}
+
+.configGrid input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+}
+
+.save {
+  width: fit-content;
+}
+
+.notice {
+  background: #fff8df;
+  border: 1px solid #f0d98c;
+  border-radius: 8px;
+  padding: 11px 13px;
+  margin-bottom: 16px;
+  color: #604800;
+}
+
+@media (max-width: 820px) {
+  .app {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+  }
+
+  nav {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .metrics,
+  .configGrid {
+    grid-template-columns: 1fr;
+  }
+}

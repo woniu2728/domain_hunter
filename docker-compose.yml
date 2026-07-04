@@ -1,0 +1,25 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    environment:
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./runtime/database:/app/database
+      - ./runtime/data:/app/data
+      - ./runtime/cache:/app/cache
+      - ./runtime:/app/runtime
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+    restart: unless-stopped

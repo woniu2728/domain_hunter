@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.env
+.venv/
+venv/
+database/*.sqlite3
+database/*.sqlite3-*
+cache/
+runtime/*
+!runtime/.gitkeep
+frontend/node_modules/
+frontend/dist/
+data/*.txt
+data/*.gz
+!data/sample_deleted.txt
