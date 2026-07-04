@@ -113,6 +113,7 @@ docker compose down
 - Availability 并发与超时。
 - Wayback 开关与超时。
 - 候选数量与最低分。
+- 大模型评分配置：Base URL、API Key、Model ID；配置完整且调用成功时优先使用 AI 评分，失败时自动回退本地评分。
 - SMTP 邮件配置。
 - 定时任务配置；Docker/API 服务启动时自动加载，保存后自动重载。
 

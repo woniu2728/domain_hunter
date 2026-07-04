@@ -461,6 +461,15 @@ function ConfigView({
       ]
     },
     {
+      title: "大模型评分",
+      description: "配置后优先使用 OpenAI 兼容接口评分；不可用时自动回退到本地评分规则。",
+      fields: [
+        ["llm_base_url", "Base URL"],
+        ["llm_api_key", "API Key"],
+        ["llm_model_id", "Model ID"]
+      ]
+    },
+    {
       title: "定时任务",
       description: "启用后，后端服务会每天按固定时间自动运行完整流程。",
       schedule: true,

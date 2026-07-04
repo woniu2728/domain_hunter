@@ -62,6 +62,9 @@ class AppConfig:
     wayback_timeout_seconds: int = 12
     top_candidates: int = 200
     min_score: int = 40
+    llm_base_url: str = ""
+    llm_api_key: str = ""
+    llm_model_id: str = ""
     schedule_enabled: bool = False
     schedule_hour: int = 2
     schedule_minute: int = 0
@@ -76,7 +79,7 @@ class AppConfig:
 
     def masked(self) -> dict[str, Any]:
         data = self.__dict__.copy()
-        for key in ("smtp_password",):
+        for key in ("smtp_password", "llm_api_key"):
             if data.get(key):
                 data[key] = "********"
         data["zone_sources"] = [

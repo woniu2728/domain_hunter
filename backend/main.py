@@ -10,7 +10,7 @@ from config import get_settings
 from database import Database
 from domain_hunter.types import AppConfig
 from filters import DefaultDomainFilter, filter_domains
-from scorer import score_domains
+from scorer.ai_score import score_domains_for_config
 
 
 app = FastAPI(title="Domain Hunter API")
@@ -85,7 +85,8 @@ async def domains(limit: int = 100, status: str | None = None, search: str | Non
 async def preview_domains(payload: dict) -> dict:
     db = _db()
     await db.init()
-    config = _preview_config(payload)
+    stored_config = await ConfigService(db).get_config()
+    config = _preview_config(payload, stored_config)
     tlds = _preview_tlds(payload)
     raw_domains = await db.list_zone_diff_domains(
         limit=int(payload.get("source_limit", 5000)),
@@ -95,7 +96,8 @@ async def preview_domains(payload: dict) -> dict:
     filtered = filter_domains(raw_domains, filters=(_preview_filter(config, tlds),))
     min_score = int(payload.get("min_score", config.min_score))
     top_candidates = int(payload.get("top_candidates", config.top_candidates))
-    scores = [score for score in score_domains(filtered) if score.total_score >= min_score][:top_candidates]
+    scored = await score_domains_for_config(filtered, config)
+    scores = [score for score in scored if score.total_score >= min_score][:top_candidates]
     return {
         "total_source": len(raw_domains),
         "total_filtered": len(filtered),
@@ -141,9 +143,8 @@ async def run_job(payload: dict | None = None) -> dict:
     return {"job_id": job_id, "status": "running"}
 
 
-def _preview_config(payload: dict) -> AppConfig:
-    defaults = AppConfig()
-    values = defaults.__dict__.copy()
+def _preview_config(payload: dict, base_config: AppConfig) -> AppConfig:
+    values = base_config.__dict__.copy()
     for key in (
         "filter_min_length",
         "filter_max_length",

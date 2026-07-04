@@ -13,7 +13,7 @@ from domain_hunter.types import AppConfig, DomainCandidate, ScoreResult
 from downloader import download_zone, load_zone_domains
 from filters import DefaultDomainFilter, filter_domains
 from notifier import notify_results
-from scorer import score_domains
+from scorer.ai_score import score_domains_for_config
 
 
 @dataclass(frozen=True)
@@ -63,7 +63,8 @@ class PipelineService:
 
             threshold = self.config.min_score if min_score is None else min_score
             candidate_limit = self.config.top_candidates if top is None else top
-            scores = [score for score in score_domains(filtered) if score.total_score >= threshold]
+            scored = await score_domains_for_config(filtered, self.config)
+            scores = [score for score in scored if score.total_score >= threshold]
             limited_scores = scores[:candidate_limit]
             counts["total_scored"] = len(limited_scores)
 

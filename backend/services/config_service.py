@@ -8,7 +8,7 @@ from database import Database
 from domain_hunter.types import AppConfig
 
 
-SECRET_KEYS = {"smtp_password"}
+SECRET_KEYS = {"smtp_password", "llm_api_key"}
 
 
 class ConfigService:
