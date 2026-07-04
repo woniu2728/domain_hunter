@@ -556,6 +556,8 @@ function EmailSettingsEditor({
   setConfig: (value: AppConfig) => void;
   setMessage: (value: string) => void;
 }) {
+  const [testing, setTesting] = useState(false);
+  const [testMessage, setTestMessage] = useState("");
   const fields = [
     ["smtp_host", "SMTP 主机"],
     ["smtp_port", "SMTP 端口"],
@@ -568,9 +570,20 @@ function EmailSettingsEditor({
   ];
 
   async function testEmail() {
-    await onSaveConfig();
-    await api<{ status: string }>("/api/config/test-email", { method: "POST" });
-    setMessage("测试邮件已发送");
+    setTesting(true);
+    setTestMessage("正在发送测试邮件...");
+    try {
+      await onSaveConfig();
+      await api<{ status: string }>("/api/config/test-email", { method: "POST" });
+      setTestMessage("测试邮件已发送");
+      setMessage("测试邮件已发送");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setTestMessage(message);
+      setMessage(message);
+    } finally {
+      setTesting(false);
+    }
   }
 
   return (
@@ -579,9 +592,10 @@ function EmailSettingsEditor({
         <ConfigField config={config} fieldKey={key} key={key} label={label} setConfig={setConfig} />
       ))}
       <div className="configActions">
-        <button type="button" className="secondaryButton" onClick={() => testEmail().catch((error) => setMessage(error.message))}>
-          测试发送
+        <button type="button" className="secondaryButton" disabled={testing} onClick={testEmail}>
+          {testing ? "发送中" : "测试发送"}
         </button>
+        {testMessage && <span className="actionMessage">{testMessage}</span>}
       </div>
     </>
   );
