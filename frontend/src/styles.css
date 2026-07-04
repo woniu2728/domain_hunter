@@ -378,8 +378,9 @@ th {
 }
 
 .derivedPaths {
+  grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -390,6 +391,7 @@ th {
   padding: 12px;
   display: grid;
   gap: 8px;
+  min-width: 0;
 }
 
 .derivedPaths span {
