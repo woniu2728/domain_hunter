@@ -11,7 +11,7 @@ from database import Database
 from domain_hunter.types import AppConfig
 from filters import DefaultDomainFilter, filter_domains
 from notifier import send_test_email
-from scorer.ai_score import score_domains_for_config
+from scorer.ai_score import score_domains_for_config, test_llm_scoring
 
 
 app = FastAPI(title="Domain Hunter API")
@@ -78,6 +78,24 @@ async def test_email() -> dict[str, str]:
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"测试邮件发送失败：{exc}") from exc
     return {"status": "sent"}
+
+
+@app.post("/api/config/test-llm")
+async def test_llm() -> dict[str, object]:
+    db = _db()
+    await db.init()
+    config = await ConfigService(db).get_config()
+    try:
+        score = await test_llm_scoring(config)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"大模型评分测试失败：{exc}") from exc
+    return {
+        "domain": score.domain,
+        "score": score.total_score,
+        "reasons": list(score.reasons),
+    }
 
 
 @app.get("/api/stats")

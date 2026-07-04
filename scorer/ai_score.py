@@ -23,6 +23,12 @@ async def score_domains_for_config(domains: Iterable[str], config: AppConfig) ->
         return score_domains(domain_list)
 
 
+async def test_llm_scoring(config: AppConfig, domain: str = "flowmint.com") -> ScoreResult:
+    if not _llm_enabled(config):
+        raise ValueError("请先配置 Base URL、API Key 和 Model ID。")
+    return (await _score_domains_with_llm([domain], config))[0]
+
+
 async def _score_domains_with_llm(domains: list[str], config: AppConfig) -> list[ScoreResult]:
     scores: list[ScoreResult] = []
     async with httpx.AsyncClient(timeout=60) as client:

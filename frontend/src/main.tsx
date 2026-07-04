@@ -484,6 +484,7 @@ function ConfigView({
     {
       title: "大模型评分",
       description: "配置后优先使用 OpenAI 兼容接口评分；不可用时自动回退到本地评分规则。",
+      llmSettings: true,
       fields: [
         ["llm_base_url", "Base URL"],
         ["llm_api_key", "API Key"],
@@ -528,6 +529,8 @@ function ConfigView({
               <RuntimePathsEditor config={config} setConfig={setConfig} />
             ) : "schedule" in group && group.schedule ? (
               <ScheduleEditor config={config} setConfig={setConfig} />
+            ) : "llmSettings" in group && group.llmSettings ? (
+              <LlmSettingsEditor config={config} onSaveConfig={onSaveConfig} setConfig={setConfig} setMessage={setMessage} />
             ) : "emailSettings" in group && group.emailSettings ? (
               <EmailSettingsEditor config={config} onSaveConfig={onSaveConfig} setConfig={setConfig} setMessage={setMessage} />
             ) : (
@@ -560,6 +563,58 @@ function ConfigView({
       </button>
       {!hasDirectRunSource && <div className="hint">启动任务需要先添加并启用至少一个 Zone 来源；点击启动会弹出提示。</div>}
     </section>
+  );
+}
+
+function LlmSettingsEditor({
+  config,
+  onSaveConfig,
+  setConfig,
+  setMessage
+}: {
+  config: AppConfig;
+  onSaveConfig: () => Promise<AppConfig>;
+  setConfig: (value: AppConfig) => void;
+  setMessage: (value: string) => void;
+}) {
+  const [testing, setTesting] = useState(false);
+  const [testMessage, setTestMessage] = useState("");
+  const fields = [
+    ["llm_base_url", "Base URL"],
+    ["llm_api_key", "API Key"],
+    ["llm_model_id", "Model ID"]
+  ];
+
+  async function testLlm() {
+    setTesting(true);
+    setTestMessage("正在测试大模型评分...");
+    try {
+      await onSaveConfig();
+      const result = await api<{ domain: string; score: number; reasons: string[] }>("/api/config/test-llm", { method: "POST" });
+      const message = `测试通过：${result.domain} 评分 ${result.score}`;
+      setTestMessage(message);
+      setMessage(message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setTestMessage(message);
+      setMessage(message);
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  return (
+    <>
+      {fields.map(([key, label]) => (
+        <ConfigField config={config} fieldKey={key} key={key} label={label} setConfig={setConfig} />
+      ))}
+      <div className="configActions">
+        <button type="button" className="secondaryButton" disabled={testing} onClick={testLlm}>
+          {testing ? "测试中" : "测试连接"}
+        </button>
+        {testMessage && <span className="actionMessage">{testMessage}</span>}
+      </div>
+    </>
   );
 }
 
