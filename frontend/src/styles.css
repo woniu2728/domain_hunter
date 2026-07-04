@@ -8,8 +8,15 @@
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
 body {
   margin: 0;
+  overflow: hidden;
 }
 
 button,
@@ -28,15 +35,17 @@ label select,
 }
 
 .app {
-  min-height: 100vh;
+  height: 100vh;
   display: grid;
   grid-template-columns: 232px 1fr;
+  overflow: hidden;
 }
 
 .sidebar {
   background: #17202a;
   color: #f7fafc;
   padding: 24px 16px;
+  overflow: auto;
 }
 
 .brand {
@@ -79,6 +88,7 @@ nav button:hover {
 main {
   padding: 28px;
   overflow: auto;
+  min-width: 0;
 }
 
 .topbar {
@@ -507,12 +517,23 @@ th {
 }
 
 @media (max-width: 820px) {
+  body {
+    overflow: auto;
+  }
+
   .app {
+    height: auto;
+    min-height: 100vh;
     grid-template-columns: 1fr;
+    overflow: visible;
   }
 
   .sidebar {
     position: static;
+  }
+
+  main {
+    overflow: visible;
   }
 
   nav {
@@ -521,8 +542,7 @@ th {
 
   .metrics,
   .configGrid,
-  .previewGrid,
-  .derivedPaths {
+  .previewGrid {
     grid-template-columns: 1fr;
   }
 
