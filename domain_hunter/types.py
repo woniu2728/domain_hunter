@@ -48,6 +48,14 @@ class AppConfig:
     cache_dir: str = "runtime/cache"
     czds_zone_url: str = ""
     czds_bearer_token: str = ""
+    filter_min_length: int = 4
+    filter_max_length: int = 12
+    filter_com_only: bool = True
+    filter_letters_only: bool = True
+    filter_require_vowel: bool = True
+    filter_no_digits: bool = True
+    filter_no_hyphen: bool = True
+    filter_max_consecutive_consonants: int = 3
     availability_provider: str = "mock"
     availability_concurrency: int = 10
     availability_timeout_seconds: int = 12

@@ -10,7 +10,7 @@ from database import Database
 from diff import diff_deleted_domains
 from domain_hunter.types import AppConfig, DomainCandidate, ScoreResult
 from downloader import download_zone, load_zone_domains
-from filters import filter_domains
+from filters import DefaultDomainFilter, filter_domains
 from notifier import notify_results
 from scorer import score_domains
 
@@ -56,7 +56,7 @@ class PipelineService:
             deleted = deleted_domains or await load_deleted_domains(today_zone, yesterday_zone, deleted_file, self.config)
             counts["total_deleted"] = len(deleted)
 
-            filtered = filter_domains(deleted)
+            filtered = filter_domains(deleted, filters=(self._domain_filter(),))
             counts["total_filtered"] = len(filtered)
 
             threshold = self.config.min_score if min_score is None else min_score
@@ -109,6 +109,18 @@ class PipelineService:
         ]
         await self.db.upsert_domains(candidates)
         await self.db.upsert_scores(scores)
+
+    def _domain_filter(self) -> DefaultDomainFilter:
+        return DefaultDomainFilter(
+            min_length=self.config.filter_min_length,
+            max_length=self.config.filter_max_length,
+            com_only=self.config.filter_com_only,
+            letters_only=self.config.filter_letters_only,
+            require_vowel=self.config.filter_require_vowel,
+            no_digits=self.config.filter_no_digits,
+            no_hyphen=self.config.filter_no_hyphen,
+            max_consecutive_consonants=self.config.filter_max_consecutive_consonants,
+        )
 
 
 async def load_deleted_domains(

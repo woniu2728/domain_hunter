@@ -275,31 +275,75 @@ function Jobs({
 }
 
 function ConfigView({ config, setConfig, setMessage }: { config: Config; setConfig: (value: Config) => void; setMessage: (value: string) => void }) {
-  const fields = [
-    ["app_env", "运行环境"],
-    ["database_url", "数据库路径"],
-    ["data_dir", "数据目录"],
-    ["cache_dir", "缓存目录"],
-    ["czds_zone_url", "CZDS Zone 地址"],
-    ["czds_bearer_token", "CZDS Bearer Token"],
-    ["availability_provider", "可用性查询方式"],
-    ["availability_concurrency", "可用性查询并发数"],
-    ["availability_timeout_seconds", "可用性查询超时秒数"],
-    ["wayback_enabled", "启用 Wayback 检查"],
-    ["wayback_timeout_seconds", "Wayback 超时秒数"],
-    ["top_candidates", "候选数量上限"],
-    ["min_score", "最低评分"],
-    ["schedule_enabled", "启用定时任务"],
-    ["schedule_hour", "定时小时"],
-    ["schedule_minute", "定时分钟"],
-    ["smtp_host", "SMTP 主机"],
-    ["smtp_port", "SMTP 端口"],
-    ["smtp_username", "SMTP 用户名"],
-    ["smtp_password", "SMTP 密码"],
-    ["smtp_use_tls", "启用 SMTP TLS"],
-    ["email_from", "发件人"],
-    ["email_to", "收件人"],
-    ["send_empty_report", "无结果时发送报告"]
+  const groups = [
+    {
+      title: "运行路径",
+      description: "后端启动和运行时使用的本地路径。",
+      fields: [
+        ["app_env", "运行环境"],
+        ["database_url", "数据库路径"],
+        ["data_dir", "数据目录"],
+        ["cache_dir", "缓存目录"]
+      ]
+    },
+    {
+      title: "数据源",
+      description: "CZDS 用于从 Zone 文件来源启动完整流程；也可以在仪表盘上传已删除域名列表。",
+      fields: [
+        ["czds_zone_url", "CZDS Zone 地址"],
+        ["czds_bearer_token", "CZDS Bearer Token"]
+      ]
+    },
+    {
+      title: "域名过滤规则",
+      description: "这些规则会在评分前执行，用来减少低质量候选。",
+      fields: [
+        ["filter_min_length", "最小长度"],
+        ["filter_max_length", "最大长度"],
+        ["filter_com_only", "仅允许 .com"],
+        ["filter_letters_only", "仅允许字母"],
+        ["filter_require_vowel", "要求至少一个元音"],
+        ["filter_no_digits", "拒绝数字"],
+        ["filter_no_hyphen", "拒绝连字符"],
+        ["filter_max_consecutive_consonants", "最大连续辅音数"]
+      ]
+    },
+    {
+      title: "评分与查询",
+      description: "控制候选规模、最低分和外部查询超时。",
+      fields: [
+        ["top_candidates", "候选数量上限"],
+        ["min_score", "最低评分"],
+        ["availability_provider", "可用性查询方式"],
+        ["availability_concurrency", "可用性查询并发数"],
+        ["availability_timeout_seconds", "可用性查询超时秒数"],
+        ["wayback_enabled", "启用 Wayback 检查"],
+        ["wayback_timeout_seconds", "Wayback 超时秒数"]
+      ]
+    },
+    {
+      title: "定时任务",
+      description: "控制自动运行时间。",
+      fields: [
+        ["schedule_enabled", "启用定时任务"],
+        ["schedule_hour", "定时小时"],
+        ["schedule_minute", "定时分钟"]
+      ]
+    },
+    {
+      title: "邮件通知",
+      description: "配置 SMTP 后，流程完成时会发送候选域名报告。",
+      fields: [
+        ["smtp_host", "SMTP 主机"],
+        ["smtp_port", "SMTP 端口"],
+        ["smtp_username", "SMTP 用户名"],
+        ["smtp_password", "SMTP 密码"],
+        ["smtp_use_tls", "启用 SMTP TLS"],
+        ["email_from", "发件人"],
+        ["email_to", "收件人"],
+        ["send_empty_report", "无结果时发送报告"]
+      ]
+    }
   ] as const;
 
   async function save() {
@@ -313,26 +357,61 @@ function ConfigView({ config, setConfig, setMessage }: { config: Config; setConf
   }
 
   return (
-    <section className="configGrid">
-      {fields.map(([key, label]) => (
-        <label key={key}>
-          <span>{label}</span>
-          {typeof config[key] === "boolean" ? (
-            <input type="checkbox" checked={Boolean(config[key])} onChange={(event) => setConfig({ ...config, [key]: event.target.checked })} />
-          ) : (
-            <input
-              type={key.includes("password") ? "password" : typeof config[key] === "number" ? "number" : "text"}
-              value={String(config[key] ?? "")}
-              onChange={(event) => setConfig({ ...config, [key]: typeof config[key] === "number" ? Number(event.target.value) : event.target.value })}
-            />
-          )}
-        </label>
+    <section className="configSections">
+      {groups.map((group) => (
+        <section className="configSection" key={group.title}>
+          <div className="sectionHeader">
+            <h2>{group.title}</h2>
+            <p>{group.description}</p>
+          </div>
+          <div className="configGrid">
+            {group.fields.map(([key, label]) => (
+              <ConfigField config={config} fieldKey={key} key={key} label={label} setConfig={setConfig} />
+            ))}
+          </div>
+        </section>
       ))}
       <button className="save" onClick={() => save().catch((error) => setMessage(error.message))}>
         <Mail size={18} />
         保存配置
       </button>
     </section>
+  );
+}
+
+function ConfigField({
+  config,
+  fieldKey,
+  label,
+  setConfig
+}: {
+  config: Config;
+  fieldKey: string;
+  label: string;
+  setConfig: (value: Config) => void;
+}) {
+  return (
+    <label>
+      <span>{label}</span>
+      {typeof config[fieldKey] === "boolean" ? (
+        <input
+          type="checkbox"
+          checked={Boolean(config[fieldKey])}
+          onChange={(event) => setConfig({ ...config, [fieldKey]: event.target.checked })}
+        />
+      ) : (
+        <input
+          type={fieldKey.includes("password") || fieldKey.includes("token") ? "password" : typeof config[fieldKey] === "number" ? "number" : "text"}
+          value={String(config[fieldKey] ?? "")}
+          onChange={(event) =>
+            setConfig({
+              ...config,
+              [fieldKey]: typeof config[fieldKey] === "number" ? Number(event.target.value) : event.target.value
+            })
+          }
+        />
+      )}
+    </label>
   );
 }
 

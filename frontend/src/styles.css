@@ -273,16 +273,41 @@ th {
   padding: 0 10px;
 }
 
+.configSections {
+  display: grid;
+  gap: 16px;
+  max-width: 1100px;
+}
+
+.configSection {
+  background: #ffffff;
+  border: 1px solid #dfe5eb;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.sectionHeader {
+  margin-bottom: 14px;
+}
+
+.sectionHeader h2 {
+  margin: 0 0 5px;
+}
+
+.sectionHeader p {
+  color: #66717c;
+  font-size: 14px;
+}
+
 .configGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(240px, 1fr));
-  gap: 14px;
-  max-width: 980px;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 12px;
 }
 
 .configGrid label {
-  background: #ffffff;
-  border: 1px solid #dfe5eb;
+  background: #fafbfc;
+  border: 1px solid #e4e9ee;
   border-radius: 8px;
   padding: 12px;
   display: grid;
@@ -308,6 +333,8 @@ th {
 
 .save {
   width: fit-content;
+  position: sticky;
+  bottom: 18px;
 }
 
 .notice {
