@@ -499,7 +499,20 @@ function ConfigView({
               <ScheduleEditor config={config} setConfig={setConfig} />
             ) : (
               group.fields.map(([key, label]) => (
-                <ConfigField config={config} fieldKey={key} key={key} label={label} setConfig={setConfig} />
+                key === "availability_provider" ? (
+                  <label key={key}>
+                    <span>{label}</span>
+                    <select
+                      value={String(config.availability_provider ?? "mock")}
+                      onChange={(event) => setConfig({ ...config, availability_provider: event.target.value })}
+                    >
+                      <option value="mock">mock</option>
+                      <option value="rdap">rdap</option>
+                    </select>
+                  </label>
+                ) : (
+                  <ConfigField config={config} fieldKey={key} key={key} label={label} setConfig={setConfig} />
+                )
               ))
             )}
           </div>
