@@ -67,6 +67,16 @@ CREATE TABLE IF NOT EXISTS jobs (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_one_running_job
 ON jobs(status)
 WHERE status = 'running';
+
+CREATE TABLE IF NOT EXISTS zone_diff (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    domain TEXT NOT NULL,
+    tld TEXT NOT NULL,
+    diff_date TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'zone',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(domain, diff_date)
+);
 """
 
 
@@ -184,6 +194,68 @@ class Database:
                 (status, domain),
             )
             await db.commit()
+
+    async def upsert_zone_diff(self, domains: Iterable[str], diff_date: str, source: str = "zone") -> None:
+        rows = [
+            (
+                domain,
+                domain.rsplit(".", 1)[1] if "." in domain else "",
+                diff_date,
+                source,
+            )
+            for domain in domains
+        ]
+        if not rows:
+            return
+        async with aiosqlite.connect(self.path) as db:
+            await db.executemany(
+                """
+                INSERT INTO zone_diff(domain, tld, diff_date, source)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(domain, diff_date) DO UPDATE SET
+                    tld=excluded.tld,
+                    source=excluded.source
+                """,
+                rows,
+            )
+            await db.commit()
+
+    async def list_zone_diff_domains(
+        self,
+        limit: int = 5000,
+        tlds: list[str] | None = None,
+        search: str | None = None,
+    ) -> list[str]:
+        clauses: list[str] = []
+        params: list[Any] = []
+        if tlds:
+            placeholders = ", ".join("?" for _ in tlds)
+            clauses.append(f"tld IN ({placeholders})")
+            params.extend(tlds)
+        if search:
+            clauses.append("domain LIKE ?")
+            params.append(f"%{search}%")
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        params.append(limit)
+        async with aiosqlite.connect(self.path) as db:
+            rows = await db.execute_fetchall(
+                f"""
+                SELECT domain
+                FROM zone_diff
+                {where}
+                GROUP BY domain
+                ORDER BY MAX(diff_date) DESC, domain ASC
+                LIMIT ?
+                """,
+                tuple(params),
+            )
+        return [row[0] for row in rows]
+
+    async def zone_diff_stats(self) -> dict[str, int]:
+        async with aiosqlite.connect(self.path) as db:
+            total = (await db.execute_fetchall("SELECT COUNT(DISTINCT domain) FROM zone_diff"))[0][0]
+            tlds = (await db.execute_fetchall("SELECT COUNT(DISTINCT tld) FROM zone_diff"))[0][0]
+        return {"deleted_domains": total, "deleted_tlds": tlds}
 
     async def get_settings(self) -> dict[str, Any]:
         async with aiosqlite.connect(self.path) as db:

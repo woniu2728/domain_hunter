@@ -56,6 +56,7 @@ class PipelineService:
         try:
             deleted = deleted_domains or await load_deleted_domains(today_zone, yesterday_zone, deleted_file, self.config)
             counts["total_deleted"] = len(deleted)
+            await self.db.upsert_zone_diff(deleted, diff_date=date.today().isoformat(), source=source)
 
             filtered = filter_domains(deleted, filters=(self._domain_filter(),))
             counts["total_filtered"] = len(filtered)

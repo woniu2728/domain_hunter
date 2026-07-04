@@ -10,17 +10,19 @@ type Stats = {
   available: number;
   spam: number;
   jobs: number;
+  deleted_domains?: number;
+  deleted_tlds?: number;
 };
 
 type Candidate = {
   domain: string;
   status: string;
-  deleted_date: string;
+  deleted_date?: string;
   total_score: number | null;
   reasons: string | null;
-  archive: number | null;
-  spam: number | null;
-  notes: string | null;
+  archive?: number | null;
+  spam?: number | null;
+  notes?: string | null;
 };
 
 type Job = {
@@ -48,6 +50,28 @@ type AppConfig = Config & {
   zone_sources?: ZoneSource[];
 };
 
+type PreviewConfig = {
+  tlds: string;
+  search: string;
+  source_limit: number;
+  filter_min_length: number;
+  filter_max_length: number;
+  filter_letters_only: boolean;
+  filter_require_vowel: boolean;
+  filter_no_digits: boolean;
+  filter_no_hyphen: boolean;
+  filter_max_consecutive_consonants: number;
+  top_candidates: number;
+  min_score: number;
+};
+
+type PreviewResult = {
+  total_source: number;
+  total_filtered: number;
+  total_scored: number;
+  items: Candidate[];
+};
+
 const API = "";
 const VIEW_TITLES: Record<View, string> = {
   dashboard: "仪表盘",
@@ -60,6 +84,7 @@ const STATUS_LABELS: Record<string, string> = {
   available: "可注册",
   registered: "已注册",
   deleted: "已删除",
+  preview: "临时预览",
   running: "运行中",
   success: "成功",
   failed: "失败"
@@ -85,6 +110,8 @@ function App() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [message, setMessage] = useState("");
+  const [previewConfig, setPreviewConfig] = useState<PreviewConfig>(defaultPreviewConfig());
+  const [previewResult, setPreviewResult] = useState<PreviewResult | null>(null);
   const hasRunningJob = jobs.some((job) => job.status === "running");
   const hasDirectRunSource = Boolean(config.zone_sources?.some((source) => source.enabled && source.tld && source.zone_url));
 
@@ -161,7 +188,19 @@ function App() {
           />
         )}
         {view === "candidates" && (
-          <Candidates candidates={candidates} search={search} setSearch={setSearch} status={status} setStatus={setStatus} />
+          <Candidates
+            candidates={previewResult?.items ?? candidates}
+            previewConfig={previewConfig}
+            previewResult={previewResult}
+            runPreview={runPreview}
+            search={search}
+            clearPreview={() => setPreviewResult(null)}
+            setMessage={setMessage}
+            setPreviewConfig={setPreviewConfig}
+            setSearch={setSearch}
+            setStatus={setStatus}
+            status={status}
+          />
         )}
         {view === "jobs" && (
           <Jobs
@@ -185,6 +224,16 @@ function App() {
     });
     setMessage(`任务 ${result.job_id} 已启动`);
     await loadAll();
+  }
+
+  async function runPreview() {
+    const result = await api<PreviewResult>("/api/domains/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(previewConfig)
+    });
+    setPreviewResult(result);
+    setMessage(`预览完成：原始 ${result.total_source} 个，过滤后 ${result.total_filtered} 个，展示 ${result.total_scored} 个。`);
   }
 }
 
@@ -212,6 +261,7 @@ function Dashboard({
         <Metric label="可注册" value={stats.available} />
         <Metric label="疑似垃圾历史" value={stats.spam} />
         <Metric label="任务数" value={stats.jobs} />
+        <Metric label="原始删除域名" value={stats.deleted_domains ?? 0} />
       </div>
       <div className="toolbar">
         <button disabled={hasRunningJob || !hasDirectRunSource} onClick={() => onRun().catch((error) => setMessage(error.message))}>
@@ -231,9 +281,63 @@ function Dashboard({
   );
 }
 
-function Candidates({ candidates, search, setSearch, status, setStatus }: { candidates: Candidate[]; search: string; setSearch: (value: string) => void; status: string; setStatus: (value: string) => void }) {
+function Candidates({
+  candidates,
+  previewConfig,
+  previewResult,
+  runPreview,
+  search,
+  clearPreview,
+  setMessage,
+  setPreviewConfig,
+  setSearch,
+  status,
+  setStatus
+}: {
+  candidates: Candidate[];
+  previewConfig: PreviewConfig;
+  previewResult: PreviewResult | null;
+  runPreview: () => Promise<void>;
+  search: string;
+  clearPreview: () => void;
+  setMessage: (value: string) => void;
+  setPreviewConfig: (value: PreviewConfig) => void;
+  setSearch: (value: string) => void;
+  status: string;
+  setStatus: (value: string) => void;
+}) {
   return (
     <section className="stack">
+      <section className="candidatePreview">
+        <div className="sectionHeader">
+          <h2>临时过滤预览</h2>
+          <p>只读取已保存的 deleted domains 重新过滤和评分，不下载 Zone，不查询可注册状态，不发送通知。</p>
+        </div>
+        <div className="previewGrid">
+          <PreviewField label="后缀，逗号分隔" fieldKey="tlds" config={previewConfig} setConfig={setPreviewConfig} />
+          <PreviewField label="域名包含" fieldKey="search" config={previewConfig} setConfig={setPreviewConfig} />
+          <PreviewField label="原始读取上限" fieldKey="source_limit" config={previewConfig} setConfig={setPreviewConfig} />
+          <PreviewField label="最小长度" fieldKey="filter_min_length" config={previewConfig} setConfig={setPreviewConfig} />
+          <PreviewField label="最大长度" fieldKey="filter_max_length" config={previewConfig} setConfig={setPreviewConfig} />
+          <PreviewField label="最低评分" fieldKey="min_score" config={previewConfig} setConfig={setPreviewConfig} />
+          <PreviewField label="候选数量上限" fieldKey="top_candidates" config={previewConfig} setConfig={setPreviewConfig} />
+          <PreviewField label="最大连续辅音数" fieldKey="filter_max_consecutive_consonants" config={previewConfig} setConfig={setPreviewConfig} />
+          <PreviewField label="仅允许字母" fieldKey="filter_letters_only" config={previewConfig} setConfig={setPreviewConfig} />
+          <PreviewField label="要求至少一个元音" fieldKey="filter_require_vowel" config={previewConfig} setConfig={setPreviewConfig} />
+          <PreviewField label="拒绝数字" fieldKey="filter_no_digits" config={previewConfig} setConfig={setPreviewConfig} />
+          <PreviewField label="拒绝连字符" fieldKey="filter_no_hyphen" config={previewConfig} setConfig={setPreviewConfig} />
+        </div>
+        <div className="toolbar">
+          <button onClick={() => runPreview().catch((error) => setMessage(error.message))}>
+            <Search size={18} />
+            预览候选
+          </button>
+          {previewResult && <button className="secondaryAction" onClick={clearPreview}>清除预览</button>}
+        </div>
+        {previewResult && (
+          <div className="hint">表格正在展示临时预览结果。原始 {previewResult.total_source} 个，过滤后 {previewResult.total_filtered} 个，当前展示 {previewResult.total_scored} 个。</div>
+        )}
+      </section>
       <div className="filters">
         <label className="search">
           <Search size={17} />
@@ -248,6 +352,39 @@ function Candidates({ candidates, search, setSearch, status, setStatus }: { cand
       </div>
       <CandidateTable candidates={candidates} />
     </section>
+  );
+}
+
+function PreviewField({
+  config,
+  fieldKey,
+  label,
+  setConfig
+}: {
+  config: PreviewConfig;
+  fieldKey: keyof PreviewConfig;
+  label: string;
+  setConfig: (value: PreviewConfig) => void;
+}) {
+  const value = config[fieldKey];
+  return (
+    <label>
+      <span>{label}</span>
+      {typeof value === "boolean" ? (
+        <input type="checkbox" checked={value} onChange={(event) => setConfig({ ...config, [fieldKey]: event.target.checked })} />
+      ) : (
+        <input
+          type={typeof value === "number" ? "number" : "text"}
+          value={value}
+          onChange={(event) =>
+            setConfig({
+              ...config,
+              [fieldKey]: typeof value === "number" ? Number(event.target.value) : event.target.value
+            })
+          }
+        />
+      )}
+    </label>
   );
 }
 
@@ -583,6 +720,23 @@ function errorLabel(error: string | null) {
     return "-";
   }
   return ERROR_LABELS[error] ?? error;
+}
+
+function defaultPreviewConfig(): PreviewConfig {
+  return {
+    tlds: "",
+    search: "",
+    source_limit: 5000,
+    filter_min_length: 4,
+    filter_max_length: 12,
+    filter_letters_only: true,
+    filter_require_vowel: true,
+    filter_no_digits: true,
+    filter_no_hyphen: true,
+    filter_max_consecutive_consonants: 3,
+    top_candidates: 100,
+    min_score: 40
+  };
 }
 
 createRoot(document.getElementById("root")!).render(<App />);
