@@ -408,7 +408,6 @@ function ConfigView({
       title: "运行路径",
       description: "后端启动和运行时使用的本地路径。",
       fields: [
-        ["app_env", "运行环境"],
         ["database_url", "数据库路径"],
         ["data_dir", "数据目录"],
         ["cache_dir", "缓存目录"]

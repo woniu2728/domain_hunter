@@ -12,7 +12,7 @@ load_dotenv()
 
 
 RUNTIME_SETTINGS_PATH = Path("runtime/app_settings.json")
-RUNTIME_SETTING_KEYS = {"app_env", "data_dir", "cache_dir", "database_url"}
+RUNTIME_SETTING_KEYS = {"data_dir", "cache_dir", "database_url"}
 DEFAULT_RUNTIME_SETTINGS = {
     "app_env": "local",
     "data_dir": "runtime/data",
