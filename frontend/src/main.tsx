@@ -39,6 +39,29 @@ type Job = {
 type Config = Record<string, string | number | boolean>;
 
 const API = "";
+const VIEW_TITLES: Record<View, string> = {
+  dashboard: "仪表盘",
+  candidates: "候选域名",
+  jobs: "任务",
+  config: "配置"
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  available: "可注册",
+  registered: "已注册",
+  deleted: "已删除",
+  running: "运行中",
+  success: "成功",
+  failed: "失败"
+};
+
+const SOURCE_LABELS: Record<string, string> = {
+  api: "手动运行",
+  upload: "上传文件",
+  cli: "命令行",
+  schedule: "定时任务",
+  manual: "手动运行"
+};
 
 function App() {
   const [view, setView] = useState<View>("dashboard");
@@ -77,10 +100,10 @@ function App() {
 
   const nav = useMemo(
     () => [
-      ["dashboard", Activity, "Dashboard"],
-      ["candidates", Database, "Candidates"],
-      ["jobs", Play, "Jobs"],
-      ["config", Settings, "Config"]
+      ["dashboard", Activity, "仪表盘"],
+      ["candidates", Database, "候选域名"],
+      ["jobs", Play, "任务"],
+      ["config", Settings, "配置"]
     ] as const,
     []
   );
@@ -88,7 +111,7 @@ function App() {
   return (
     <div className="app">
       <aside className="sidebar">
-        <div className="brand">Domain Hunter</div>
+        <div className="brand">域名猎手</div>
         <nav>
           {nav.map(([key, Icon, label]) => (
             <button className={view === key ? "active" : ""} key={key} onClick={() => setView(key)}>
@@ -103,9 +126,9 @@ function App() {
         <header className="topbar">
           <div>
             <h1>{titleFor(view)}</h1>
-            <p>Deleted .com discovery pipeline</p>
+            <p>已删除 .com 域名发现流程</p>
           </div>
-          <button className="iconButton" onClick={() => loadAll().catch((error) => setMessage(error.message))} title="Refresh">
+          <button className="iconButton" onClick={() => loadAll().catch((error) => setMessage(error.message))} title="刷新">
             <RefreshCw size={18} />
           </button>
         </header>
@@ -127,7 +150,7 @@ function App() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({})
     });
-    setMessage(`Job ${result.job_id} started`);
+    setMessage(`任务 ${result.job_id} 已启动`);
     await loadAll();
   }
 }
@@ -136,21 +159,21 @@ function Dashboard({ stats, jobs, candidates, onRun, setMessage }: { stats: Stat
   return (
     <section className="stack">
       <div className="metrics">
-        <Metric label="Domains" value={stats.domains} />
-        <Metric label="Available" value={stats.available} />
-        <Metric label="Spam history" value={stats.spam} />
-        <Metric label="Jobs" value={stats.jobs} />
+        <Metric label="域名总数" value={stats.domains} />
+        <Metric label="可注册" value={stats.available} />
+        <Metric label="疑似垃圾历史" value={stats.spam} />
+        <Metric label="任务数" value={stats.jobs} />
       </div>
       <div className="toolbar">
         <button onClick={() => onRun().catch((error) => setMessage(error.message))}>
           <Play size={18} />
-          Run pipeline
+          运行流程
         </button>
         <UploadButton setMessage={setMessage} />
       </div>
-      <h2>Top Candidates</h2>
+      <h2>高分候选</h2>
       <CandidateTable candidates={candidates.slice(0, 10)} />
-      <h2>Recent Jobs</h2>
+      <h2>最近任务</h2>
       <JobTable jobs={jobs.slice(0, 5)} />
     </section>
   );
@@ -162,13 +185,13 @@ function Candidates({ candidates, search, setSearch, status, setStatus }: { cand
       <div className="filters">
         <label className="search">
           <Search size={17} />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search domain" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索域名" />
         </label>
         <select value={status} onChange={(event) => setStatus(event.target.value)}>
-          <option value="">All statuses</option>
-          <option value="available">Available</option>
-          <option value="registered">Registered</option>
-          <option value="deleted">Deleted</option>
+          <option value="">全部状态</option>
+          <option value="available">可注册</option>
+          <option value="registered">已注册</option>
+          <option value="deleted">已删除</option>
         </select>
       </div>
       <CandidateTable candidates={candidates} />
@@ -182,7 +205,7 @@ function Jobs({ jobs, onRun, setMessage }: { jobs: Job[]; onRun: () => Promise<v
       <div className="toolbar">
         <button onClick={() => onRun().catch((error) => setMessage(error.message))}>
           <Play size={18} />
-          Run pipeline
+          运行流程
         </button>
         <UploadButton setMessage={setMessage} />
       </div>
@@ -193,30 +216,30 @@ function Jobs({ jobs, onRun, setMessage }: { jobs: Job[]; onRun: () => Promise<v
 
 function ConfigView({ config, setConfig, setMessage }: { config: Config; setConfig: (value: Config) => void; setMessage: (value: string) => void }) {
   const fields = [
-    ["app_env", "App environment"],
-    ["database_url", "Database path"],
-    ["data_dir", "Data directory"],
-    ["cache_dir", "Cache directory"],
-    ["czds_zone_url", "CZDS zone URL"],
-    ["czds_bearer_token", "CZDS bearer token"],
-    ["availability_provider", "Availability provider"],
-    ["availability_concurrency", "Availability concurrency"],
-    ["availability_timeout_seconds", "Availability timeout"],
-    ["wayback_enabled", "Wayback enabled"],
-    ["wayback_timeout_seconds", "Wayback timeout"],
-    ["top_candidates", "Top candidates"],
-    ["min_score", "Minimum score"],
-    ["schedule_enabled", "Schedule enabled"],
-    ["schedule_hour", "Schedule hour"],
-    ["schedule_minute", "Schedule minute"],
-    ["smtp_host", "SMTP host"],
-    ["smtp_port", "SMTP port"],
-    ["smtp_username", "SMTP username"],
-    ["smtp_password", "SMTP password"],
-    ["smtp_use_tls", "SMTP TLS"],
-    ["email_from", "Email from"],
-    ["email_to", "Email to"],
-    ["send_empty_report", "Send empty report"]
+    ["app_env", "运行环境"],
+    ["database_url", "数据库路径"],
+    ["data_dir", "数据目录"],
+    ["cache_dir", "缓存目录"],
+    ["czds_zone_url", "CZDS Zone 地址"],
+    ["czds_bearer_token", "CZDS Bearer Token"],
+    ["availability_provider", "可用性查询方式"],
+    ["availability_concurrency", "可用性查询并发数"],
+    ["availability_timeout_seconds", "可用性查询超时秒数"],
+    ["wayback_enabled", "启用 Wayback 检查"],
+    ["wayback_timeout_seconds", "Wayback 超时秒数"],
+    ["top_candidates", "候选数量上限"],
+    ["min_score", "最低评分"],
+    ["schedule_enabled", "启用定时任务"],
+    ["schedule_hour", "定时小时"],
+    ["schedule_minute", "定时分钟"],
+    ["smtp_host", "SMTP 主机"],
+    ["smtp_port", "SMTP 端口"],
+    ["smtp_username", "SMTP 用户名"],
+    ["smtp_password", "SMTP 密码"],
+    ["smtp_use_tls", "启用 SMTP TLS"],
+    ["email_from", "发件人"],
+    ["email_to", "收件人"],
+    ["send_empty_report", "无结果时发送报告"]
   ] as const;
 
   async function save() {
@@ -226,7 +249,7 @@ function ConfigView({ config, setConfig, setMessage }: { config: Config; setConf
       body: JSON.stringify(config)
     });
     setConfig(saved);
-    setMessage("Config saved");
+    setMessage("配置已保存");
   }
 
   return (
@@ -247,7 +270,7 @@ function ConfigView({ config, setConfig, setMessage }: { config: Config; setConf
       ))}
       <button className="save" onClick={() => save().catch((error) => setMessage(error.message))}>
         <Mail size={18} />
-        Save config
+        保存配置
       </button>
     </section>
   );
@@ -258,12 +281,12 @@ function UploadButton({ setMessage }: { setMessage: (value: string) => void }) {
     const form = new FormData();
     form.append("file", file);
     const result = await api<{ job_id: number }>("/api/jobs/upload", { method: "POST", body: form });
-    setMessage(`Upload job ${result.job_id} started`);
+    setMessage(`上传任务 ${result.job_id} 已启动`);
   }
 
   return (
     <label className="upload">
-      Upload deleted list
+      上传已删除列表
       <input type="file" accept=".txt,.csv" onChange={(event) => event.target.files?.[0] && upload(event.target.files[0]).catch((error) => setMessage(error.message))} />
     </label>
   );
@@ -284,11 +307,11 @@ function CandidateTable({ candidates }: { candidates: Candidate[] }) {
       <table>
         <thead>
           <tr>
-            <th>Domain</th>
-            <th>Score</th>
-            <th>Status</th>
-            <th>History</th>
-            <th>Reasons</th>
+            <th>域名</th>
+            <th>评分</th>
+            <th>状态</th>
+            <th>历史</th>
+            <th>评分原因</th>
           </tr>
         </thead>
         <tbody>
@@ -296,8 +319,8 @@ function CandidateTable({ candidates }: { candidates: Candidate[] }) {
             <tr key={item.domain}>
               <td>{item.domain}</td>
               <td>{item.total_score ?? "-"}</td>
-              <td><span className={`pill ${item.status}`}>{item.status}</span></td>
-              <td>{item.spam ? "Spam" : item.notes || "Clean"}</td>
+              <td><span className={`pill ${item.status}`}>{statusLabel(item.status)}</span></td>
+              <td>{item.spam ? "疑似垃圾历史" : item.notes || "干净"}</td>
               <td>{item.reasons || "-"}</td>
             </tr>
           ))}
@@ -314,21 +337,21 @@ function JobTable({ jobs }: { jobs: Job[] }) {
         <thead>
           <tr>
             <th>ID</th>
-            <th>Status</th>
-            <th>Source</th>
-            <th>Deleted</th>
-            <th>Filtered</th>
-            <th>Scored</th>
-            <th>Available</th>
-            <th>Error</th>
+            <th>状态</th>
+            <th>来源</th>
+            <th>删除数</th>
+            <th>过滤后</th>
+            <th>已评分</th>
+            <th>可注册</th>
+            <th>错误</th>
           </tr>
         </thead>
         <tbody>
           {jobs.map((job) => (
             <tr key={job.id}>
               <td>{job.id}</td>
-              <td><span className={`pill ${job.status}`}>{job.status}</span></td>
-              <td>{job.source}</td>
+              <td><span className={`pill ${job.status}`}>{statusLabel(job.status)}</span></td>
+              <td>{sourceLabel(job.source)}</td>
               <td>{job.total_deleted}</td>
               <td>{job.total_filtered}</td>
               <td>{job.total_scored}</td>
@@ -351,7 +374,15 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 function titleFor(view: View) {
-  return view.charAt(0).toUpperCase() + view.slice(1);
+  return VIEW_TITLES[view];
+}
+
+function statusLabel(status: string) {
+  return STATUS_LABELS[status] ?? status;
+}
+
+function sourceLabel(source: string) {
+  return SOURCE_LABELS[source] ?? source;
 }
 
 createRoot(document.getElementById("root")!).render(<App />);
