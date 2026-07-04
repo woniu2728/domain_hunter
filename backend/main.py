@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-import tempfile
 
-from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.services.config_service import ConfigService
@@ -92,30 +91,10 @@ async def run_job(background_tasks: BackgroundTasks, payload: dict | None = None
         raise HTTPException(status_code=409, detail="已有任务正在运行，请等待完成后再启动。")
     config = await ConfigService(db).get_config()
     if not _has_enabled_zone_source(config.zone_sources):
-        raise HTTPException(status_code=400, detail="请先上传已删除域名列表，或在配置中添加启用的 Zone 来源。")
+        raise HTTPException(status_code=400, detail="请先在配置中添加启用的 Zone 来源。")
     job_id = await db.create_job("api")
     background_tasks.add_task(_run_background_job, job_id, payload or {})
     return {"job_id": job_id, "status": "running"}
-
-
-@app.post("/api/jobs/upload")
-async def upload_deleted_file(background_tasks: BackgroundTasks, file: UploadFile = File(...)) -> dict:
-    db = _db()
-    await db.init()
-    if await db.has_running_job():
-        raise HTTPException(status_code=409, detail="已有任务正在运行，请等待完成后再上传。")
-    suffix = Path(file.filename or "deleted.txt").suffix or ".txt"
-    temp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
-    try:
-        content = await file.read()
-        temp.write(content)
-        temp.close()
-        job_id = await db.create_job("upload")
-        background_tasks.add_task(_run_background_job, job_id, {"deleted_file": temp.name})
-        return {"job_id": job_id, "status": "running"}
-    except Exception:
-        Path(temp.name).unlink(missing_ok=True)
-        raise
 
 
 async def _run_background_job(job_id: int, payload: dict) -> None:
@@ -124,18 +103,14 @@ async def _run_background_job(job_id: int, payload: dict) -> None:
     config = await ConfigService(db).get_config()
     service = PipelineService(db, config)
     deleted_file = Path(payload["deleted_file"]) if payload.get("deleted_file") else None
-    try:
-        await service.run(
-            deleted_file=deleted_file,
-            source="api",
-            top=_optional_int(payload.get("top")),
-            min_score=_optional_int(payload.get("min_score")),
-            create_job=False,
-            job_id=job_id,
-        )
-    finally:
-        if deleted_file and str(deleted_file).startswith(tempfile.gettempdir()):
-            deleted_file.unlink(missing_ok=True)
+    await service.run(
+        deleted_file=deleted_file,
+        source="api",
+        top=_optional_int(payload.get("top")),
+        min_score=_optional_int(payload.get("min_score")),
+        create_job=False,
+        job_id=job_id,
+    )
 
 
 def _optional_int(value: object) -> int | None:

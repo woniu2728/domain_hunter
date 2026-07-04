@@ -67,14 +67,13 @@ const STATUS_LABELS: Record<string, string> = {
 
 const SOURCE_LABELS: Record<string, string> = {
   api: "手动运行",
-  upload: "上传文件",
   cli: "命令行",
   schedule: "定时任务",
   manual: "手动运行"
 };
 
 const ERROR_LABELS: Record<string, string> = {
-  "Provide deleted_file or both today_zone and yesterday_zone.": "请先上传已删除域名列表，或在配置中添加启用的 Zone 来源。"
+  "Provide deleted_file or both today_zone and yesterday_zone.": "请先在配置中添加启用的 Zone 来源。"
 };
 
 function App() {
@@ -219,11 +218,10 @@ function Dashboard({
           <Play size={18} />
           {hasRunningJob ? "任务运行中" : "从 CZDS 运行"}
         </button>
-        <UploadButton setMessage={setMessage} disabled={hasRunningJob} />
       </div>
       <div className="hint">
         流程会读取已删除域名来源，依次执行规则过滤、品牌评分、可注册查询、Wayback 历史检查和邮件通知。
-        {!hasDirectRunSource && " 从 CZDS 运行需要先在配置中添加启用的 Zone 来源；没有配置时请上传已删除域名列表。"}
+        {!hasDirectRunSource && " 从 CZDS 运行需要先在配置中添加启用的 Zone 来源。"}
       </div>
       <h2>高分候选</h2>
       <CandidateTable candidates={candidates.slice(0, 10)} />
@@ -273,11 +271,10 @@ function Jobs({
           <Play size={18} />
           {hasRunningJob ? "任务运行中" : "从 CZDS 运行"}
         </button>
-        <UploadButton setMessage={setMessage} disabled={hasRunningJob} />
       </div>
       <div className="hint">
         流程会读取已删除域名来源，依次执行规则过滤、品牌评分、可注册查询、Wayback 历史检查和邮件通知。
-        {!hasDirectRunSource && " 从 CZDS 运行需要启用的 Zone 来源；没有配置时请使用上传入口。"}
+        {!hasDirectRunSource && " 从 CZDS 运行需要启用的 Zone 来源。"}
       </div>
       <JobTable jobs={jobs} />
     </section>
@@ -475,27 +472,6 @@ function ZoneSourcesEditor({ config, setConfig }: { config: AppConfig; setConfig
       ))}
       <button className="secondaryButton" type="button" onClick={addSource}>添加后缀来源</button>
     </div>
-  );
-}
-
-function UploadButton({ setMessage, disabled = false }: { setMessage: (value: string) => void; disabled?: boolean }) {
-  async function upload(file: File) {
-    const form = new FormData();
-    form.append("file", file);
-    const result = await api<{ job_id: number }>("/api/jobs/upload", { method: "POST", body: form });
-    setMessage(`上传任务 ${result.job_id} 已启动`);
-  }
-
-  return (
-    <label className={`upload ${disabled ? "disabled" : ""}`}>
-      {disabled ? "任务运行中" : "上传已删除列表"}
-      <input
-        disabled={disabled}
-        type="file"
-        accept=".txt,.csv"
-        onChange={(event) => event.target.files?.[0] && upload(event.target.files[0]).catch((error) => setMessage(error.message))}
-      />
-    </label>
   );
 }
 
