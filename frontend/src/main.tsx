@@ -195,6 +195,7 @@ function App() {
             setSearch={setSearch}
             setStatus={setStatus}
             status={status}
+            zoneSources={config.zone_sources ?? []}
           />
         )}
         {view === "config" && (
@@ -292,7 +293,8 @@ function Candidates({
   setPreviewConfig,
   setSearch,
   status,
-  setStatus
+  setStatus,
+  zoneSources
 }: {
   candidates: Candidate[];
   previewConfig: PreviewConfig;
@@ -305,7 +307,12 @@ function Candidates({
   setSearch: (value: string) => void;
   status: string;
   setStatus: (value: string) => void;
+  zoneSources: ZoneSource[];
 }) {
+  const tldOptions = Array.from(
+    new Set(zoneSources.map((source) => source.tld.trim().toLowerCase().replace(/^\./, "")).filter(Boolean))
+  );
+
   return (
     <section className="stack">
       <section className="candidatePreview">
@@ -314,7 +321,18 @@ function Candidates({
           <p>只读取已保存的 deleted domains 重新过滤和评分，不下载 Zone，不查询可注册状态，不发送通知。</p>
         </div>
         <div className="previewGrid">
-          <PreviewField label="后缀，逗号分隔" fieldKey="tlds" config={previewConfig} setConfig={setPreviewConfig} />
+          <label>
+            <span>后缀</span>
+            <select
+              value={previewConfig.tlds}
+              onChange={(event) => setPreviewConfig({ ...previewConfig, tlds: event.target.value })}
+            >
+              <option value="">全部后缀</option>
+              {tldOptions.map((tld) => (
+                <option key={tld} value={tld}>{tld}</option>
+              ))}
+            </select>
+          </label>
           <PreviewField label="域名包含" fieldKey="search" config={previewConfig} setConfig={setPreviewConfig} />
           <PreviewField label="原始读取上限" fieldKey="source_limit" config={previewConfig} setConfig={setPreviewConfig} />
           <PreviewField label="最小长度" fieldKey="filter_min_length" config={previewConfig} setConfig={setPreviewConfig} />

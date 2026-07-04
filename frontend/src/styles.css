@@ -18,6 +18,16 @@ select {
   font: inherit;
 }
 
+label input,
+label select,
+.zoneRow input,
+.zoneRow select,
+.derivedPaths input,
+.derivedPaths select {
+  min-width: 0;
+  width: 100%;
+}
+
 .app {
   min-height: 100vh;
   display: grid;
@@ -251,6 +261,12 @@ th {
   background: transparent;
 }
 
+.search input {
+  flex: 1;
+  min-width: 120px;
+  width: auto;
+}
+
 .filters select {
   height: 42px;
   background: #ffffff;
@@ -280,6 +296,7 @@ th {
   padding: 10px;
   display: grid;
   gap: 7px;
+  min-width: 0;
 }
 
 .previewGrid label span {
@@ -287,7 +304,8 @@ th {
   font-size: 13px;
 }
 
-.previewGrid input {
+.previewGrid input,
+.previewGrid select {
   height: 36px;
   border: 1px solid #cbd4dd;
   border-radius: 7px;
@@ -338,6 +356,7 @@ th {
   padding: 12px;
   display: grid;
   gap: 8px;
+  min-width: 0;
 }
 
 .configGrid label span {
@@ -345,7 +364,8 @@ th {
   font-size: 13px;
 }
 
-.configGrid input {
+.configGrid input,
+.configGrid select {
   height: 38px;
   border: 1px solid #cbd4dd;
   border-radius: 7px;
