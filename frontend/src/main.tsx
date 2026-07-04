@@ -474,9 +474,9 @@ function ConfigView({
       fields: [
         ["top_candidates", "候选数量上限"],
         ["min_score", "最低评分"],
-        ["availability_provider", "可用性查询方式"],
-        ["availability_concurrency", "可用性查询并发数"],
-        ["availability_timeout_seconds", "可用性查询超时秒数"],
+        ["availability_provider", "可注册查询方式"],
+        ["availability_concurrency", "可注册查询并发数"],
+        ["availability_timeout_seconds", "可注册查询超时秒数"],
         ["wayback_enabled", "启用 Wayback 检查"],
         ["wayback_timeout_seconds", "Wayback 超时秒数"]
       ]
