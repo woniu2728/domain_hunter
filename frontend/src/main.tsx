@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Activity, Database, Folder, Play, RefreshCw, RotateCw, Search, Settings, Square } from "lucide-react";
+import { Activity, ChevronDown, Database, Folder, Play, RefreshCw, RotateCw, Search, Settings, Square } from "lucide-react";
 import "./styles.css";
 
 type View = "dashboard" | "candidates" | "config";
@@ -522,6 +522,11 @@ function ConfigView({
   setConfig: (value: AppConfig) => void;
   setMessage: (value: string) => void;
 }) {
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({
+    "大模型评分": true,
+    "定时任务": true,
+    "邮件通知": true
+  });
   const groups = [
     {
       title: "运行路径",
@@ -596,52 +601,70 @@ function ConfigView({
 
   return (
     <section className="configSections">
-      {groups.map((group) => (
-        <section className="configSection" key={group.title}>
-          <div className="sectionHeader">
-            <h2>{group.title}</h2>
-            <p>{group.description}</p>
-          </div>
-          <div className="configGrid">
-            {"dataSource" in group && group.dataSource ? (
-              <DataSourceEditor config={config} onSaveConfig={onSaveConfig} setConfig={setConfig} setMessage={setMessage} />
-            ) : "runtimePaths" in group && group.runtimePaths ? (
-              <RuntimePathsEditor config={config} setConfig={setConfig} />
-            ) : "schedule" in group && group.schedule ? (
-              <ScheduleEditor config={config} setConfig={setConfig} />
-            ) : "llmSettings" in group && group.llmSettings ? (
-              <LlmSettingsEditor config={config} onSaveConfig={onSaveConfig} setConfig={setConfig} setMessage={setMessage} />
-            ) : "emailSettings" in group && group.emailSettings ? (
-              <EmailSettingsEditor config={config} onSaveConfig={onSaveConfig} setConfig={setConfig} setMessage={setMessage} />
-            ) : (
-              group.fields.map(([key, label]) => (
-                key === "availability_provider" ? (
-                  <label key={key}>
-                    <span>{label}</span>
-                    <select
-                      value={String(config.availability_provider ?? "mock")}
-                      onChange={(event) => setConfig({ ...config, availability_provider: event.target.value })}
-                    >
-                      <option value="mock">mock</option>
-                      <option value="rdap">rdap</option>
-                    </select>
-                  </label>
+      <div className="configActionBar">
+        <div>
+          <strong>{hasRunningJob ? "任务正在运行" : "任务未运行"}</strong>
+          {!hasDirectRunSource && <span>需要可用账号和至少一个启用后缀计划。</span>}
+        </div>
+        <button
+          className="save"
+          onClick={() => onStartJob().catch((error) => setMessage(error.message))}
+        >
+          <Play size={18} />
+          {hasRunningJob ? "按当前配置重启任务" : "启动任务"}
+        </button>
+      </div>
+      {groups.map((group) => {
+        const collapsed = Boolean(collapsedGroups[group.title]);
+        return (
+          <section className={`configSection ${collapsed ? "isCollapsed" : ""}`} key={group.title}>
+            <button
+              aria-expanded={!collapsed}
+              className="sectionHeader sectionToggle"
+              onClick={() => setCollapsedGroups({ ...collapsedGroups, [group.title]: !collapsed })}
+              type="button"
+            >
+              <span>
+                <h2>{group.title}</h2>
+                <p>{group.description}</p>
+              </span>
+              <ChevronDown size={18} />
+            </button>
+            {!collapsed && (
+              <div className="configGrid">
+                {"dataSource" in group && group.dataSource ? (
+                  <DataSourceEditor config={config} onSaveConfig={onSaveConfig} setConfig={setConfig} setMessage={setMessage} />
+                ) : "runtimePaths" in group && group.runtimePaths ? (
+                  <RuntimePathsEditor config={config} setConfig={setConfig} />
+                ) : "schedule" in group && group.schedule ? (
+                  <ScheduleEditor config={config} setConfig={setConfig} />
+                ) : "llmSettings" in group && group.llmSettings ? (
+                  <LlmSettingsEditor config={config} onSaveConfig={onSaveConfig} setConfig={setConfig} setMessage={setMessage} />
+                ) : "emailSettings" in group && group.emailSettings ? (
+                  <EmailSettingsEditor config={config} onSaveConfig={onSaveConfig} setConfig={setConfig} setMessage={setMessage} />
                 ) : (
-                  <ConfigField config={config} fieldKey={key} key={key} label={label} setConfig={setConfig} />
-                )
-              ))
+                  group.fields.map(([key, label]) => (
+                    key === "availability_provider" ? (
+                      <label key={key}>
+                        <span>{label}</span>
+                        <select
+                          value={String(config.availability_provider ?? "mock")}
+                          onChange={(event) => setConfig({ ...config, availability_provider: event.target.value })}
+                        >
+                          <option value="mock">mock</option>
+                          <option value="rdap">rdap</option>
+                        </select>
+                      </label>
+                    ) : (
+                      <ConfigField config={config} fieldKey={key} key={key} label={label} setConfig={setConfig} />
+                    )
+                  ))
+                )}
+              </div>
             )}
-          </div>
-        </section>
-      ))}
-      <button
-        className="save"
-        onClick={() => onStartJob().catch((error) => setMessage(error.message))}
-      >
-        <Play size={18} />
-        {hasRunningJob ? "按当前配置重启任务" : "启动任务"}
-      </button>
-      {!hasDirectRunSource && <div className="hint">启动任务需要先配置可用账号，并启用至少一个后缀爬取计划；点击启动会弹出提示。</div>}
+          </section>
+        );
+      })}
     </section>
   );
 }
@@ -901,6 +924,15 @@ function ConfigField({
   );
 }
 
+function MobileField({ children, label }: { children: React.ReactNode; label: string }) {
+  return (
+    <label className="mobileField">
+      <span className="mobileFieldLabel">{label}</span>
+      {children}
+    </label>
+  );
+}
+
 function AccountsEditor({
   config,
   onSaveConfig,
@@ -933,14 +965,16 @@ function AccountsEditor({
       {accounts.length === 0 && <div className="emptyState">至少添加一个 ExpiredDomains.net 账号后才能启动任务。</div>}
       {accounts.map((account, index) => (
         <div className="accountRow" key={account.id || index}>
-          <input type="checkbox" checked={account.enabled} onChange={(event) => updateAccount(index, { enabled: event.target.checked })} />
-          <input value={account.username} onChange={(event) => updateAccount(index, { username: event.target.value })} placeholder="用户名" />
-          <input type="password" value={account.password ?? ""} onChange={(event) => updateAccount(index, { password: event.target.value })} placeholder="密码" />
-          <select value={account.proxy_id ?? ""} onChange={(event) => updateAccount(index, { proxy_id: event.target.value })}>
-            <option value="">默认/不使用</option>
-            {proxies.map((proxy) => <option key={proxy.id} value={proxy.id}>{proxy.name || proxy.id}</option>)}
-          </select>
-          <span className={`pill ${account.status || "healthy"}`} title={account.last_error || ""}>{crawlerStatusLabel(account.status)}</span>
+          <MobileField label="启用"><input type="checkbox" checked={account.enabled} onChange={(event) => updateAccount(index, { enabled: event.target.checked })} /></MobileField>
+          <MobileField label="账号"><input value={account.username} onChange={(event) => updateAccount(index, { username: event.target.value })} placeholder="用户名" /></MobileField>
+          <MobileField label="密码"><input type="password" value={account.password ?? ""} onChange={(event) => updateAccount(index, { password: event.target.value })} placeholder="密码" /></MobileField>
+          <MobileField label="绑定代理">
+            <select value={account.proxy_id ?? ""} onChange={(event) => updateAccount(index, { proxy_id: event.target.value })}>
+              <option value="">默认/不使用</option>
+              {proxies.map((proxy) => <option key={proxy.id} value={proxy.id}>{proxy.name || proxy.id}</option>)}
+            </select>
+          </MobileField>
+          <MobileField label="状态"><span className={`pill ${account.status || "healthy"}`} title={account.last_error || ""}>{crawlerStatusLabel(account.status)}</span></MobileField>
           <div className="rowActions">
             <button type="button" onClick={() => testAccount(account).catch((error) => setMessage(error.message))}>测试</button>
             <button type="button" onClick={() => setConfig({ ...config, expireddomains_accounts: accounts.filter((_, itemIndex) => itemIndex !== index) })}>删除</button>
@@ -983,10 +1017,10 @@ function ProxiesEditor({
       {proxies.length === 0 && <div className="emptyState">代理可选，不配置则使用当前服务器直连。</div>}
       {proxies.map((proxy, index) => (
         <div className="proxyRow" key={proxy.id || index}>
-          <input type="checkbox" checked={proxy.enabled} onChange={(event) => updateProxy(index, { enabled: event.target.checked })} />
-          <input value={proxy.name} onChange={(event) => updateProxy(index, { name: event.target.value })} placeholder="proxy-us-1" />
-          <input type="password" value={proxy.url ?? ""} onChange={(event) => updateProxy(index, { url: event.target.value })} placeholder="http://user:pass@host:port" />
-          <span className={`pill ${proxy.status || "healthy"}`} title={proxy.last_error || ""}>{crawlerStatusLabel(proxy.status)}</span>
+          <MobileField label="启用"><input type="checkbox" checked={proxy.enabled} onChange={(event) => updateProxy(index, { enabled: event.target.checked })} /></MobileField>
+          <MobileField label="名称"><input value={proxy.name} onChange={(event) => updateProxy(index, { name: event.target.value })} placeholder="proxy-us-1" /></MobileField>
+          <MobileField label="代理 URL"><input type="password" value={proxy.url ?? ""} onChange={(event) => updateProxy(index, { url: event.target.value })} placeholder="http://user:pass@host:port" /></MobileField>
+          <MobileField label="状态"><span className={`pill ${proxy.status || "healthy"}`} title={proxy.last_error || ""}>{crawlerStatusLabel(proxy.status)}</span></MobileField>
           <div className="rowActions">
             <button type="button" onClick={() => testProxy(proxy).catch((error) => setMessage(error.message))}>测试</button>
             <button type="button" onClick={() => setConfig({ ...config, expireddomains_proxies: proxies.filter((_, itemIndex) => itemIndex !== index) })}>删除</button>
@@ -1029,17 +1063,21 @@ function TldSchedulesEditor({
       {schedules.length === 0 && <div className="emptyState">至少添加一个后缀计划后才能启动任务。</div>}
       {schedules.map((schedule, index) => (
         <div className="scheduleRow" key={`${schedule.tld}-${index}`}>
-          <input type="checkbox" checked={schedule.enabled} onChange={(event) => updateSchedule(index, { enabled: event.target.checked })} />
-          <select value={normalizeTld(schedule.tld)} onChange={(event) => updateSchedule(index, { tld: event.target.value })}>
-            {schedule.tld && !TLD_OPTIONS.includes(normalizeTld(schedule.tld)) && <option value={normalizeTld(schedule.tld)}>{normalizeTld(schedule.tld)}</option>}
-            {TLD_OPTIONS.map((tld) => <option key={tld} value={tld}>{tld}</option>)}
-          </select>
-          <input type="time" value={timeFromSchedule(schedule)} onChange={(event) => updateSchedule(index, scheduleTimePatch(event.target.value))} />
-          <select value={schedule.timezone || "Asia/Shanghai"} onChange={(event) => updateSchedule(index, { timezone: event.target.value })}>
-            {TIMEZONE_OPTIONS.map((timezone) => <option key={timezone} value={timezone}>{timezone}</option>)}
-          </select>
-          <input type="number" min="1" value={String(schedule.max_pages ?? 20)} onChange={(event) => updateSchedule(index, { max_pages: Number(event.target.value) })} />
-          <input type="number" min="0" value={String(schedule.request_delay_seconds ?? 12)} onChange={(event) => updateSchedule(index, { request_delay_seconds: Number(event.target.value) })} />
+          <MobileField label="启用"><input type="checkbox" checked={schedule.enabled} onChange={(event) => updateSchedule(index, { enabled: event.target.checked })} /></MobileField>
+          <MobileField label="后缀">
+            <select value={normalizeTld(schedule.tld)} onChange={(event) => updateSchedule(index, { tld: event.target.value })}>
+              {schedule.tld && !TLD_OPTIONS.includes(normalizeTld(schedule.tld)) && <option value={normalizeTld(schedule.tld)}>{normalizeTld(schedule.tld)}</option>}
+              {TLD_OPTIONS.map((tld) => <option key={tld} value={tld}>{tld}</option>)}
+            </select>
+          </MobileField>
+          <MobileField label="每日时间"><input type="time" value={timeFromSchedule(schedule)} onChange={(event) => updateSchedule(index, scheduleTimePatch(event.target.value))} /></MobileField>
+          <MobileField label="时区">
+            <select value={schedule.timezone || "Asia/Shanghai"} onChange={(event) => updateSchedule(index, { timezone: event.target.value })}>
+              {TIMEZONE_OPTIONS.map((timezone) => <option key={timezone} value={timezone}>{timezone}</option>)}
+            </select>
+          </MobileField>
+          <MobileField label="最大页数"><input type="number" min="1" value={String(schedule.max_pages ?? 20)} onChange={(event) => updateSchedule(index, { max_pages: Number(event.target.value) })} /></MobileField>
+          <MobileField label="间隔秒"><input type="number" min="0" value={String(schedule.request_delay_seconds ?? 12)} onChange={(event) => updateSchedule(index, { request_delay_seconds: Number(event.target.value) })} /></MobileField>
           <div className="rowActions">
             <button type="button" onClick={() => testFetch(schedule).catch((error) => setMessage(error.message))}>测试</button>
             <button type="button" onClick={() => setConfig({ ...config, expireddomains_tld_schedules: schedules.filter((_, itemIndex) => itemIndex !== index) })}>删除</button>
