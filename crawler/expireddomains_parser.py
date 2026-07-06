@@ -103,7 +103,12 @@ def _next_page_url(soup: BeautifulSoup) -> str | None:
     for link in soup.find_all("a"):
         text = _clean_text(link.get_text(" ")).lower()
         rel = " ".join(link.get("rel", [])).lower() if isinstance(link.get("rel"), list) else str(link.get("rel", "")).lower()
-        if text in {"next", "next page", ">"} or "next" in rel:
+        href = str(link.get("href", ""))
+        if (
+            text in {"next", "next page", ">"}
+            or "next" in rel
+            or ("start=" in href and "#listing" in href and "combinedexpired" in href)
+        ):
             href = link.get("href")
             return str(href) if href else None
     return None

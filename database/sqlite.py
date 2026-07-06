@@ -293,6 +293,43 @@ class Database:
             )
             await db.commit()
 
+    async def clear_source_domains(
+        self,
+        source_date: str,
+        provider: str = "expireddomains",
+        tlds: list[str] | None = None,
+    ) -> None:
+        clauses = ["provider = ?", "source_date = ?"]
+        params: list[Any] = [provider, source_date]
+        if tlds:
+            placeholders = ", ".join("?" for _ in tlds)
+            clauses.append(f"tld IN ({placeholders})")
+            params.extend(tlds)
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                f"DELETE FROM deleted_domain_sources WHERE {' AND '.join(clauses)}",
+                tuple(params),
+            )
+            await db.commit()
+
+    async def clear_candidates(self, tlds: list[str] | None = None) -> None:
+        clauses: list[str] = []
+        params: list[Any] = []
+        if tlds:
+            placeholders = ", ".join("?" for _ in tlds)
+            clauses.append(f"tld IN ({placeholders})")
+            params.extend(tlds)
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        async with aiosqlite.connect(self.path) as db:
+            ids = [row[0] for row in await db.execute_fetchall(f"SELECT id FROM domains {where}", tuple(params))]
+            if not ids:
+                return
+            placeholders = ", ".join("?" for _ in ids)
+            await db.execute(f"DELETE FROM score WHERE domain_id IN ({placeholders})", tuple(ids))
+            await db.execute(f"DELETE FROM history WHERE domain_id IN ({placeholders})", tuple(ids))
+            await db.execute(f"DELETE FROM domains WHERE id IN ({placeholders})", tuple(ids))
+            await db.commit()
+
     async def list_source_domains(
         self,
         source_date: str,

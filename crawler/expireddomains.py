@@ -80,7 +80,7 @@ class ExpiredDomainsCrawler:
             all_available.extend(available)
             if not next_url:
                 break
-            url = urljoin(BASE_URL, next_url)
+            url = urljoin(url, next_url)
             if self.request_delay_seconds:
                 await asyncio.sleep(self.request_delay_seconds)
         return CrawlResult(

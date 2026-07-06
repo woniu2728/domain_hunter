@@ -61,6 +61,7 @@ class PipelineService:
                 1 for score in limited_scores if source_status_by_domain.get(score.domain, "available") == "available"
             )
 
+            await self.db.clear_candidates(tlds=[tld.strip().lower().lstrip(".")] if tld else None)
             await self._save_scores(limited_scores, source_status_by_domain)
 
             await notify_results(limited_scores, [], self.config)

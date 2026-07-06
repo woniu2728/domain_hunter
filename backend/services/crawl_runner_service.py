@@ -52,7 +52,9 @@ class CrawlRunnerService:
                 max_length=int(schedule.get("filter_max_length", 0) or 0) or None,
                 allow_digits=bool(schedule.get("filter_allow_digits", True)),
             )
-            await self.db.upsert_source_domains(result.available_domains, source_date=date.today().isoformat())
+            today = date.today().isoformat()
+            await self.db.clear_source_domains(today, tlds=[tld])
+            await self.db.upsert_source_domains(result.available_domains, source_date=today)
             await self.db.finish_crawler_run(
                 run_id,
                 "success",

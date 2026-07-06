@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
-from crawler.expireddomains import build_deleted_url
+from crawler.expireddomains import ExpiredDomainsCrawler, build_deleted_url
+from crawler.types import CrawlerAccount
 from crawler.expireddomains_parser import ParseError, parse_deleted_domains
 
 
@@ -85,6 +87,61 @@ class ExpiredDomainsParserTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ParseError, "邮箱验证码"):
             parse_deleted_domains(html, "com")
+
+    def test_parse_combined_expired_next_page_link(self) -> None:
+        html = """
+        <html><body>
+          <div id="listing">
+            <table>
+              <thead><tr><th>Domain</th><th>Changes</th></tr></thead>
+              <tbody><tr><td><a>flowmint.com</a></td><td>1</td></tr></tbody>
+            </table>
+          </div>
+          <a href="/domains/combinedexpired/?start=25&ftlds[]=2&o=changes&r=d#listing">2</a>
+        </body></html>
+        """
+
+        _, _, next_url = parse_deleted_domains(html, "com")
+
+        self.assertEqual(next_url, "/domains/combinedexpired/?start=25&ftlds[]=2&o=changes&r=d#listing")
+
+    def test_crawler_follows_member_next_page(self) -> None:
+        import asyncio
+
+        first_page = """
+        <html><body>
+          <div id="listing">
+            <table>
+              <thead><tr><th>Domain</th><th>Changes</th></tr></thead>
+              <tbody><tr><td><a>first.com</a></td><td>1</td></tr></tbody>
+            </table>
+          </div>
+          <a href="/domains/combinedexpired/?start=25&ftlds[]=2&o=changes&r=d#listing">2</a>
+        </body></html>
+        """
+        second_page = """
+        <html><body>
+          <div id="listing">
+            <table>
+              <thead><tr><th>Domain</th><th>Changes</th></tr></thead>
+              <tbody><tr><td><a>second.com</a></td><td>1</td></tr></tbody>
+            </table>
+          </div>
+        </body></html>
+        """
+        fetched_urls = []
+
+        def fake_fetch(self, url):
+            fetched_urls.append(url)
+            return first_page if len(fetched_urls) == 1 else second_page
+
+        crawler = ExpiredDomainsCrawler(CrawlerAccount("acc", "user", "pass"), request_delay_seconds=0)
+        with patch.object(ExpiredDomainsCrawler, "_fetch_html", fake_fetch):
+            result = asyncio.run(crawler.crawl_tld("com", max_pages=2))
+
+        self.assertEqual(result.pages_fetched, 2)
+        self.assertEqual([item.domain for item in result.available_domains], ["first.com", "second.com"])
+        self.assertTrue(fetched_urls[1].startswith("https://member.expireddomains.net/domains/combinedexpired/"))
 
 
 if __name__ == "__main__":
