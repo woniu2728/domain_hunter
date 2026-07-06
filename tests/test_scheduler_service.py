@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 from backend.services.config_service import ConfigService
-from backend.services.scheduler_service import SCHEDULE_JOB_ID, SchedulerService
+from backend.services.scheduler_service import SchedulerService
 from database import Database
 
 
@@ -25,13 +25,22 @@ class SchedulerServiceTests(unittest.TestCase):
                 config = await ConfigService(db).update_config(
                     {
                         "schedule_enabled": True,
-                        "schedule_hour": 3,
-                        "schedule_minute": 15,
+                        "expireddomains_tld_schedules": [
+                            {
+                                "tld": "com",
+                                "enabled": True,
+                                "crawl_hour": 3,
+                                "crawl_minute": 15,
+                                "timezone": "Asia/Shanghai",
+                                "max_pages": 20,
+                                "request_delay_seconds": 12,
+                            }
+                        ],
                     }
                 )
                 await service.reload(config)
 
-                job = service.scheduler.get_job(SCHEDULE_JOB_ID)
+                job = service.scheduler.get_job("expireddomains-com-daily")
                 self.assertIsNotNone(job)
                 self.assertIn("cron", str(job.trigger))
                 self.assertIn("hour='3'", str(job.trigger))
@@ -40,7 +49,7 @@ class SchedulerServiceTests(unittest.TestCase):
                 config = await ConfigService(db).update_config({"schedule_enabled": False})
                 await service.reload(config)
 
-                self.assertIsNone(service.scheduler.get_job(SCHEDULE_JOB_ID))
+                self.assertIsNone(service.scheduler.get_job("expireddomains-com-daily"))
             finally:
                 service.shutdown()
 

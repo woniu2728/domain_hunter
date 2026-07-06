@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
-from pathlib import Path
 from typing import Callable
 
 from backend.services.config_service import ConfigService
+from backend.services.crawl_runner_service import CrawlRunnerService
 from backend.services.pipeline_service import PipelineService
 from database import Database
-from domain_hunter.types import AppConfig
 from notifier import notify_job_failure
 
 
@@ -33,8 +32,8 @@ class JobRunnerService:
         db = self._db()
         await db.init()
         config = await ConfigService(db).get_config()
-        if not _has_enabled_zone_source(config.zone_sources):
-            raise ValueError("请先在配置中添加启用的 Zone 来源。")
+        if not _has_enabled_crawler_config(config):
+            raise ValueError("请先配置可用账号并启用至少一个后缀爬取计划。")
 
         await self.cancel_running("任务被新的配置重启")
         job_id = await db.create_job(source)
@@ -48,7 +47,7 @@ class JobRunnerService:
         if await db.has_running_job():
             return None
         config = await ConfigService(db).get_config()
-        if not _has_enabled_zone_source(config.zone_sources):
+        if not _has_enabled_crawler_config(config):
             return None
         job_id = await db.create_job(source)
         self.current_job_id = job_id
@@ -111,11 +110,12 @@ class JobRunnerService:
         db = self._db()
         await db.init()
         config = await ConfigService(db).get_config()
+        tld = str(payload.get("tld", "")).strip().lower().lstrip(".") or None
         service = PipelineService(db, config)
-        deleted_file = Path(payload["deleted_file"]) if payload.get("deleted_file") else None
         try:
+            await CrawlRunnerService(db, config).crawl_enabled_tlds(tld=tld)
             await service.run(
-                deleted_file=deleted_file,
+                tld=tld,
                 source=source,
                 top=_optional_int(payload.get("top")),
                 min_score=_optional_int(payload.get("min_score")),
@@ -152,8 +152,16 @@ def _optional_int(value: object) -> int | None:
     return int(value)
 
 
-def _has_enabled_zone_source(sources: list[dict]) -> bool:
-    return any(source.get("enabled") and source.get("tld") and source.get("zone_url") for source in sources)
+def _has_enabled_crawler_config(config) -> bool:
+    has_account = any(
+        account.get("enabled", True) and account.get("username") and account.get("password")
+        for account in config.expireddomains_accounts
+    )
+    has_tld = any(
+        schedule.get("enabled", True) and schedule.get("tld")
+        for schedule in config.expireddomains_tld_schedules
+    )
+    return has_account and has_tld
 
 
 job_runner_service = JobRunnerService()

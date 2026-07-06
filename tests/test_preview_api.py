@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import date
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,14 +10,24 @@ from fastapi.testclient import TestClient
 
 import backend.main as api_main
 from database import Database
+from domain_hunter.types import SourceDomain
 
 
 class PreviewApiTests(unittest.TestCase):
-    def test_preview_reads_zone_diff_with_temporary_filters(self) -> None:
+    def test_preview_reads_source_domains_with_temporary_filters(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             db = Database(Path(tmpdir) / "preview.sqlite3")
             asyncio.run(db.init())
-            asyncio.run(db.upsert_zone_diff({"flowmint.com", "validname.net", "bad-123.net"}, "2026-07-04"))
+            asyncio.run(
+                db.upsert_source_domains(
+                    [
+                        SourceDomain("flowmint.com", "com"),
+                        SourceDomain("validname.net", "net"),
+                        SourceDomain("bad-123.net", "net"),
+                    ],
+                    source_date=date.today().isoformat(),
+                )
+            )
 
             original_db = api_main._db
             api_main._db = lambda: db

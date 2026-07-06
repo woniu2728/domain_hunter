@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Optional
 import asyncio
 
@@ -8,12 +7,13 @@ import typer
 from rich.console import Console
 
 from backend.services.config_service import ConfigService
+from backend.services.crawl_runner_service import CrawlRunnerService
 from backend.services.pipeline_service import PipelineService
 from config import get_settings
 from database import Database
 
 
-cli = typer.Typer(help="Discover deleted, high-value .com domains.")
+cli = typer.Typer(help="Discover deleted, high-value domains from ExpiredDomains.net.")
 console = Console()
 
 
@@ -24,17 +24,13 @@ def init_db() -> None:
 
 @cli.command("run")
 def run(
-    today_zone: Optional[Path] = typer.Option(None, help="Path to today's .com zone file."),
-    yesterday_zone: Optional[Path] = typer.Option(None, help="Path to yesterday's .com zone file."),
-    deleted_file: Optional[Path] = typer.Option(None, help="Optional file containing deleted domains, one per line."),
+    tld: Optional[str] = typer.Option(None, help="Optional TLD to crawl and process."),
     top: Optional[int] = typer.Option(None, help="Number of candidates to query."),
     min_score: Optional[int] = typer.Option(None, help="Minimum score before availability query."),
 ) -> None:
     asyncio.run(
         run_pipeline(
-            today_zone=today_zone,
-            yesterday_zone=yesterday_zone,
-            deleted_file=deleted_file,
+            tld=tld,
             top=top,
             min_score=min_score,
         )
@@ -56,9 +52,7 @@ async def _init_db() -> None:
 
 
 async def run_pipeline(
-    today_zone: Path | None = None,
-    yesterday_zone: Path | None = None,
-    deleted_file: Path | None = None,
+    tld: str | None = None,
     top: int | None = None,
     min_score: int | None = None,
 ) -> None:
@@ -67,11 +61,10 @@ async def run_pipeline(
     db = Database(settings.database_url)
     await db.init()
     config = await ConfigService(db).get_config()
+    await CrawlRunnerService(db, config).crawl_enabled_tlds(tld=tld)
     service = PipelineService(db, config)
     result = await service.run(
-        today_zone=today_zone,
-        yesterday_zone=yesterday_zone,
-        deleted_file=deleted_file,
+        tld=tld,
         top=top,
         min_score=min_score,
         source="cli",

@@ -41,13 +41,28 @@ class HistoryResult:
 
 
 @dataclass(frozen=True)
+class SourceDomain:
+    domain: str
+    tld: str
+    source_status: str = "available"
+    dropped_date: str | None = None
+    metrics: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class AppConfig:
     app_env: str = "local"
     runtime_dir: str = "runtime"
     database_url: str = "runtime/database/domain_hunter.sqlite3"
     data_dir: str = "runtime/data"
     cache_dir: str = "runtime/cache"
-    zone_sources: list[dict[str, Any]] = field(default_factory=list)
+    source_type: str = "expireddomains"
+    expireddomains_accounts: list[dict[str, Any]] = field(default_factory=list)
+    expireddomains_proxies: list[dict[str, Any]] = field(default_factory=list)
+    expireddomains_default_proxy_id: str = ""
+    expireddomains_tld_schedules: list[dict[str, Any]] = field(default_factory=list)
+    expireddomains_cleanup_enabled: bool = True
+    expireddomains_keep_days: int = 1
     filter_min_length: int = 4
     filter_max_length: int = 12
     filter_letters_only: bool = True
@@ -84,9 +99,13 @@ class AppConfig:
         for key in ("smtp_password", "llm_api_key"):
             if data.get(key):
                 data[key] = "********"
-        data["zone_sources"] = [
-            {**source, "bearer_token": "********" if source.get("bearer_token") else ""}
-            for source in self.zone_sources
+        data["expireddomains_accounts"] = [
+            {**account, "password": "********" if account.get("password") else ""}
+            for account in self.expireddomains_accounts
+        ]
+        data["expireddomains_proxies"] = [
+            {**proxy, "url": "********" if proxy.get("url") else ""}
+            for proxy in self.expireddomains_proxies
         ]
         return data
 

@@ -46,8 +46,14 @@ class ConfigService:
                 continue
             if key in SECRET_KEYS and (value is None or value == "" or value == "********"):
                 continue
-            if key == "zone_sources":
-                updates[key] = _merge_zone_sources(value, current.zone_sources)
+            if key == "expireddomains_accounts":
+                updates[key] = _merge_accounts(value, current.expireddomains_accounts)
+                continue
+            if key == "expireddomains_proxies":
+                updates[key] = _merge_proxies(value, current.expireddomains_proxies)
+                continue
+            if key == "expireddomains_tld_schedules":
+                updates[key] = _normalize_tld_schedules(value)
                 continue
             coerced = _coerce_value(key, value, current_data[key])
             if key in RUNTIME_SETTING_KEYS:
@@ -90,30 +96,97 @@ def _portable_settings(current_data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _merge_zone_sources(value: Any, current_sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _merge_accounts(value: Any, current_accounts: list[dict[str, Any]]) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         return []
-    current_by_tld = {
-        str(source.get("tld", "")).strip().lower().lstrip("."): source
-        for source in current_sources
-        if source.get("tld")
-    }
+    current_by_id = {str(account.get("id", "")): account for account in current_accounts if account.get("id")}
     merged: list[dict[str, Any]] = []
+    for index, item in enumerate(value, start=1):
+        if not isinstance(item, dict):
+            continue
+        username = str(item.get("username", "")).strip()
+        if not username:
+            continue
+        account_id = str(item.get("id", "")).strip() or f"acc-{index}"
+        password = str(item.get("password", ""))
+        if password == "********":
+            password = str(current_by_id.get(account_id, {}).get("password", ""))
+        merged.append(
+            {
+                "id": account_id,
+                "username": username,
+                "password": password,
+                "proxy_id": str(item.get("proxy_id", "")).strip(),
+                "enabled": bool(item.get("enabled", True)),
+                "status": str(item.get("status", "healthy") or "healthy"),
+                "last_error": str(item.get("last_error", "")),
+                "last_used_at": str(item.get("last_used_at", "")),
+            }
+        )
+    return merged
+
+
+def _merge_proxies(value: Any, current_proxies: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    current_by_id = {str(proxy.get("id", "")): proxy for proxy in current_proxies if proxy.get("id")}
+    merged: list[dict[str, Any]] = []
+    for index, item in enumerate(value, start=1):
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name", "")).strip() or f"Proxy {index}"
+        proxy_id = str(item.get("id", "")).strip() or f"proxy-{index}"
+        url = str(item.get("url", ""))
+        if url == "********":
+            url = str(current_by_id.get(proxy_id, {}).get("url", ""))
+        merged.append(
+            {
+                "id": proxy_id,
+                "name": name,
+                "url": url,
+                "enabled": bool(item.get("enabled", True)),
+                "status": str(item.get("status", "healthy") or "healthy"),
+                "last_error": str(item.get("last_error", "")),
+                "last_used_at": str(item.get("last_used_at", "")),
+            }
+        )
+    return merged
+
+
+def _normalize_tld_schedules(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    schedules: list[dict[str, Any]] = []
     for item in value:
         if not isinstance(item, dict):
             continue
         tld = str(item.get("tld", "")).strip().lower().lstrip(".")
         if not tld:
             continue
-        bearer_token = str(item.get("bearer_token", ""))
-        if bearer_token == "********":
-            bearer_token = str(current_by_tld.get(tld, {}).get("bearer_token", ""))
-        merged.append(
+        schedules.append(
             {
                 "tld": tld,
-                "zone_url": str(item.get("zone_url", "")).strip(),
-                "bearer_token": bearer_token,
                 "enabled": bool(item.get("enabled", True)),
+                "crawl_hour": _int_range(item.get("crawl_hour", 2), 0, 23),
+                "crawl_minute": _int_range(item.get("crawl_minute", 0), 0, 59),
+                "timezone": str(item.get("timezone", "Asia/Shanghai") or "Asia/Shanghai"),
+                "max_pages": max(1, int(item.get("max_pages", 20) or 20)),
+                "request_delay_seconds": max(0, _int_value(item.get("request_delay_seconds", 12), 12)),
             }
         )
-    return merged
+    return schedules
+
+
+def _int_value(value: Any, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _int_range(value: Any, minimum: int, maximum: int) -> int:
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        number = minimum
+    return min(maximum, max(minimum, number))

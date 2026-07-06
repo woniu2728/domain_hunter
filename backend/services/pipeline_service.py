@@ -1,16 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, timedelta
-from pathlib import Path
-from urllib.parse import urlparse
+from datetime import date
 
 from checker import check_availability, check_history
-from config import get_settings
 from database import Database
-from diff import diff_deleted_domains
 from domain_hunter.types import AppConfig, DomainCandidate, ScoreResult
-from downloader import download_zone, load_zone_domains
 from filters import DefaultDomainFilter, filter_domains
 from notifier import notify_results
 from scorer.ai_score import score_domains_for_config
@@ -33,10 +28,8 @@ class PipelineService:
 
     async def run(
         self,
-        today_zone: Path | None = None,
-        yesterday_zone: Path | None = None,
-        deleted_file: Path | None = None,
         deleted_domains: set[str] | None = None,
+        tld: str | None = None,
         source: str = "manual",
         top: int | None = None,
         min_score: int | None = None,
@@ -54,9 +47,14 @@ class PipelineService:
         }
 
         try:
-            deleted = deleted_domains or await load_deleted_domains(today_zone, yesterday_zone, deleted_file, self.config)
+            deleted = deleted_domains or set(
+                await self.db.list_source_domains(
+                    source_date=date.today().isoformat(),
+                    tlds=[tld] if tld else None,
+                    limit=50000,
+                )
+            )
             counts["total_deleted"] = len(deleted)
-            await self.db.upsert_zone_diff(deleted, diff_date=date.today().isoformat(), source=source)
 
             filtered = filter_domains(deleted, filters=(self._domain_filter(),))
             counts["total_filtered"] = len(filtered)
@@ -127,94 +125,11 @@ class PipelineService:
 
     def _allowed_tlds(self) -> tuple[str, ...]:
         enabled_tlds = tuple(
-            str(source.get("tld", "")).strip().lower().lstrip(".")
-            for source in self.config.zone_sources
-            if source.get("enabled") and source.get("tld")
+            str(schedule.get("tld", "")).strip().lower().lstrip(".")
+            for schedule in self.config.expireddomains_tld_schedules
+            if schedule.get("enabled") and schedule.get("tld")
         )
         return tuple(tld for tld in enabled_tlds if tld)
-
-
-async def load_deleted_domains(
-    today_zone: Path | None,
-    yesterday_zone: Path | None,
-    deleted_file: Path | None,
-    config: AppConfig,
-) -> set[str]:
-    settings = get_settings()
-    if deleted_file:
-        return {
-            line.strip().lower()
-            for line in deleted_file.read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        }
-
-    if today_zone and yesterday_zone:
-        today = load_zone_domains(today_zone)
-        yesterday = load_zone_domains(yesterday_zone)
-        return diff_deleted_domains(yesterday, today)
-
-    deleted_from_sources = await load_deleted_from_zone_sources(config, settings.data_dir)
-    if deleted_from_sources:
-        return deleted_from_sources
-
-    return set()
-
-
-async def load_deleted_from_zone_sources(config: AppConfig, data_dir: Path) -> set[str]:
-    deleted: set[str] = set()
-    today = date.today()
-    yesterday = today - timedelta(days=1)
-    for source in _enabled_zone_sources(config):
-        tld = source["tld"]
-        today_path = _zone_path(data_dir, tld, today, source["zone_url"])
-        yesterday_path = _matching_yesterday_path(data_dir, tld, yesterday)
-        if not _valid_zone_file(today_path, tld):
-            await download_zone(source["zone_url"], today_path, source.get("bearer_token") or None)
-        if not yesterday_path:
-            continue
-        today_domains = load_zone_domains(today_path, tld=tld)
-        yesterday_domains = load_zone_domains(yesterday_path, tld=tld)
-        deleted.update(diff_deleted_domains(yesterday_domains, today_domains))
-    return deleted
-
-
-def _enabled_zone_sources(config: AppConfig) -> list[dict[str, str]]:
-    sources: list[dict[str, str]] = []
-    for source in config.zone_sources:
-        tld = str(source.get("tld", "")).strip().lower().lstrip(".")
-        zone_url = str(source.get("zone_url", "")).strip()
-        if source.get("enabled") and tld and zone_url:
-            sources.append(
-                {
-                    "tld": tld,
-                    "zone_url": zone_url,
-                    "bearer_token": str(source.get("bearer_token", "")),
-                }
-            )
-    return sources
-
-
-def _zone_path(data_dir: Path, tld: str, day: date, zone_url: str) -> Path:
-    suffix = ".gz" if urlparse(zone_url).path.lower().endswith(".gz") else ".txt"
-    return data_dir / "zones" / tld / f"{day.isoformat()}{suffix}"
-
-
-def _matching_yesterday_path(data_dir: Path, tld: str, day: date) -> Path | None:
-    base = data_dir / "zones" / tld
-    for suffix in (".txt", ".gz"):
-        path = base / f"{day.isoformat()}{suffix}"
-        if path.exists():
-            return path
-    return None
-
-
-def _valid_zone_file(path: Path, tld: str) -> bool:
-    if not path.exists() or not path.is_file():
-        return False
-    try:
-        return bool(load_zone_domains(path, tld=tld))
-    except Exception:
-        return False
 
 
 def _domain_label(domain: str) -> str:

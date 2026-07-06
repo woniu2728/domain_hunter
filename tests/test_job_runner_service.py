@@ -27,24 +27,30 @@ class JobRunnerServiceTests(unittest.TestCase):
             await db.init()
             await ConfigService(db).update_config(
                 {
-                    "zone_sources": [
+                    "expireddomains_accounts": [
                         {
-                            "tld": "com",
-                            "zone_url": str(Path(tmpdir) / "today.txt"),
-                            "bearer_token": "",
+                            "id": "acc-1",
+                            "username": "user",
+                            "password": "pass",
+                            "proxy_id": "",
                             "enabled": True,
                         }
-                    ]
+                    ],
+                    "expireddomains_tld_schedules": [
+                        {"tld": "com", "enabled": True, "crawl_hour": 2, "crawl_minute": 0, "max_pages": 1, "request_delay_seconds": 0}
+                    ],
                 }
             )
             old_job_id = await db.create_job("api")
             runner = JobRunnerService()
             runner.start(lambda: db)
 
-            with patch("backend.services.job_runner_service.PipelineService") as pipeline:
-                pipeline.return_value.run = AsyncMock(return_value=None)
-                new_job_id = await runner.restart(source="api")
-                await runner.current_task
+            with patch("backend.services.job_runner_service.CrawlRunnerService") as crawl_runner:
+                crawl_runner.return_value.crawl_enabled_tlds = AsyncMock(return_value=["com"])
+                with patch("backend.services.job_runner_service.PipelineService") as pipeline:
+                    pipeline.return_value.run = AsyncMock(return_value=None)
+                    new_job_id = await runner.restart(source="api")
+                    await runner.current_task
 
             self.assertNotEqual(old_job_id, new_job_id)
             old_job = await db.get_job(old_job_id)
@@ -73,13 +79,17 @@ class JobRunnerServiceTests(unittest.TestCase):
             await db.init()
             await ConfigService(db).update_config(
                 {
-                    "zone_sources": [
+                    "expireddomains_accounts": [
                         {
-                            "tld": "com",
-                            "zone_url": str(Path(tmpdir) / "today.txt"),
-                            "bearer_token": "",
+                            "id": "acc-1",
+                            "username": "user",
+                            "password": "pass",
+                            "proxy_id": "",
                             "enabled": True,
                         }
+                    ],
+                    "expireddomains_tld_schedules": [
+                        {"tld": "com", "enabled": True, "crawl_hour": 2, "crawl_minute": 0, "max_pages": 1, "request_delay_seconds": 0}
                     ],
                     "failure_retry_count": 2,
                     "failure_retry_delay_seconds": 0,
@@ -91,11 +101,13 @@ class JobRunnerServiceTests(unittest.TestCase):
             runner = JobRunnerService()
             runner.start(lambda: db)
 
-            with patch("backend.services.job_runner_service.PipelineService") as pipeline:
-                pipeline.return_value.run = AsyncMock(side_effect=RuntimeError("boom"))
-                with patch("backend.services.job_runner_service.notify_job_failure", AsyncMock(return_value=None)) as notify:
-                    job_id = await runner.start_if_idle(source="schedule")
-                    await runner.current_task
+            with patch("backend.services.job_runner_service.CrawlRunnerService") as crawl_runner:
+                crawl_runner.return_value.crawl_enabled_tlds = AsyncMock(return_value=["com"])
+                with patch("backend.services.job_runner_service.PipelineService") as pipeline:
+                    pipeline.return_value.run = AsyncMock(side_effect=RuntimeError("boom"))
+                    with patch("backend.services.job_runner_service.notify_job_failure", AsyncMock(return_value=None)) as notify:
+                        job_id = await runner.start_if_idle(source="schedule")
+                        await runner.current_task
 
             jobs = await db.list_jobs()
             self.assertEqual(job_id, 1)

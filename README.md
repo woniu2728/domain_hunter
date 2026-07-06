@@ -1,20 +1,19 @@
 # domain_hunter
 
-Python 域名发现系统 MVP，用于从多个后缀的 Zone 差分或已删除域名列表中筛选、评分、查询可注册状态，并进行 Wayback 历史检查和通知。
+Python 域名发现系统，用于抓取 ExpiredDomains.net 每日更新的已删除且页面初筛可注册域名，进行规则过滤、评分、可注册二次查询、Wayback 历史检查和邮件通知。
 
 ## 功能
 
-- 支持多个后缀的 Zone 文件差分：昨天集合减今天集合。
-- 插件式过滤：长度 4-12、仅字母、无数字、无连字符、至少一个元音、无连续四个辅音。
-- 品牌评分：短域名、纯字母、AI 关键词、字典词、可发音、双词组合等规则。
-- SQLite 落库：`domains`、`score`、`history`。
-- FastAPI 后端：配置、任务、候选域名、统计接口。
-- React 前端：Dashboard、Candidates、Config；任务状态在 Dashboard 展示，任务启动入口在 Config。
-- Availability 查询：默认 `mock`，可切到 Verisign RDAP。
+- ExpiredDomains.net 数据源：支持多账号、代理池、账号绑定代理。
+- 多后缀独立调度：不同 TLD 可配置不同每日爬取时间。
+- 每日源数据落库：默认只保留今日源数据，第二天抓取前清理旧源数据。
+- 插件式过滤：长度、仅字母、无数字、无连字符、元音和连续辅音规则。
+- 本地/AI 评分：配置 OpenAI 兼容接口后优先 AI 评分，失败自动回退本地评分。
+- 可注册二次查询：页面 available 只作为初筛，最终仍通过系统配置的查询方式确认。
 - Wayback 历史检查：采样 CDX 结果并标记常见垃圾关键词。
-- 通知：配置 SMTP 后发送邮件，否则输出 Rich 表格。
-- Web 服务内置 APScheduler 定时运行。
-- Docker Compose 单机部署。
+- SQLite 落库：源数据、候选、评分、历史、任务和抓取运行记录。
+- FastAPI 后端和 React 前端。
+- APScheduler 定时运行，Docker Compose 单机部署。
 
 ## Docker 部署
 
@@ -41,8 +40,7 @@ docker compose logs -f backend
 docker compose down
 ```
 
-运行数据会保存在 `runtime/`，包括 SQLite、data、cache。
-任务运行时，如果当天 Zone 文件已存在且能解析出该后缀域名，会复用本地文件并跳过下载。
+运行数据保存在 `runtime/`，包括 SQLite、data、cache 和抓取页面快照。
 
 ## 配置
 
@@ -53,15 +51,28 @@ docker compose down
 - 数据目录：`runtime/data`
 - 缓存目录：`runtime/cache`
 
-运行目录可在前端 Config 页面维护，保存后写入 `runtime/app_settings.json`，后续启动会读取该文件。数据库、数据目录和缓存目录固定在运行目录下派生，不单独配置。
+运行目录可在前端配置页维护。数据库、数据目录和缓存目录固定在运行目录下派生。
 
-业务配置会存入后端 SQLite `settings` 表，也可在前端 Config 页面维护：
+业务配置保存在 SQLite `settings` 表，可在前端配置页维护：
 
-- 运行目录。
-- 多个后缀的 Zone 来源、Bearer Token 和启用状态。
-- Availability 并发与超时。
+- ExpiredDomains.net 账号池。
+- 代理池。
+- 后缀爬取计划，每个后缀独立每日时间、最大页数和请求间隔。
+- 域名过滤规则。
+- 可注册查询方式、并发和超时。
 - Wayback 开关与超时。
 - 候选数量与最低分。
-- 大模型评分配置：Base URL、API Key、Model ID；配置完整且调用成功时优先使用 AI 评分，失败时自动回退本地评分。
+- 大模型评分配置。
 - SMTP 邮件配置。
-- 定时任务配置；Docker/API 服务启动时自动加载，保存后自动重载。
+- 定时任务开关和失败重试配置。
+
+## 反爬边界
+
+系统只做低频、可恢复、失败可见的抓取：
+
+- 单任务低并发。
+- 固定账号和代理绑定。
+- 请求间隔和最大页数限制。
+- 登录失效、403、429、验证码时停止任务并提示人工处理。
+
+系统不做验证码绕过、高频代理轮换、自动注册账号或封禁规避式代理池。

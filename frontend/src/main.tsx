@@ -12,6 +12,8 @@ type Stats = {
   jobs: number;
   deleted_domains?: number;
   deleted_tlds?: number;
+  crawler_runs?: number;
+  crawler_failed_runs?: number;
 };
 
 type Candidate = {
@@ -38,16 +40,40 @@ type Job = {
   total_available: number;
 };
 
-type ConfigValue = string | number | boolean | ZoneSource[] | undefined;
+type ConfigValue = string | number | boolean | CrawlerAccount[] | CrawlerProxy[] | TldSchedule[] | undefined;
 type Config = Record<string, ConfigValue>;
-type ZoneSource = {
-  tld: string;
-  zone_url: string;
-  bearer_token: string;
+type CrawlerAccount = {
+  id: string;
+  username: string;
+  password: string;
+  proxy_id: string;
   enabled: boolean;
+  status?: string;
+  last_error?: string;
+  last_used_at?: string;
+};
+type CrawlerProxy = {
+  id: string;
+  name: string;
+  url: string;
+  enabled: boolean;
+  status?: string;
+  last_error?: string;
+  last_used_at?: string;
+};
+type TldSchedule = {
+  tld: string;
+  enabled: boolean;
+  crawl_hour: number;
+  crawl_minute: number;
+  timezone: string;
+  max_pages: number;
+  request_delay_seconds: number;
 };
 type AppConfig = Config & {
-  zone_sources?: ZoneSource[];
+  expireddomains_accounts?: CrawlerAccount[];
+  expireddomains_proxies?: CrawlerProxy[];
+  expireddomains_tld_schedules?: TldSchedule[];
 };
 
 type PreviewConfig = {
@@ -94,11 +120,12 @@ const SOURCE_LABELS: Record<string, string> = {
   api: "手动运行",
   cli: "命令行",
   schedule: "定时任务",
-  manual: "手动运行"
+  manual: "手动运行",
+  "schedule-retry": "定时重试"
 };
 
 const ERROR_LABELS: Record<string, string> = {
-  "Provide deleted_file or both today_zone and yesterday_zone.": "请先在配置中添加启用的 Zone 来源。"
+  "Provide deleted_file or both today_zone and yesterday_zone.": "请先配置可用账号并启用至少一个后缀爬取计划。"
 };
 
 function App() {
@@ -113,7 +140,10 @@ function App() {
   const [previewConfig, setPreviewConfig] = useState<PreviewConfig>(defaultPreviewConfig());
   const [previewResult, setPreviewResult] = useState<PreviewResult | null>(null);
   const hasRunningJob = jobs.some((job) => job.status === "running");
-  const hasDirectRunSource = Boolean(config.zone_sources?.some((source) => source.enabled && source.tld && source.zone_url));
+  const hasCrawlerSource = Boolean(
+    config.expireddomains_accounts?.some((account) => account.enabled && account.username && account.password) &&
+    config.expireddomains_tld_schedules?.some((schedule) => schedule.enabled && schedule.tld)
+  );
 
   async function loadAll() {
     const [statsData, jobsData, candidatesData, configData] = await Promise.all([
@@ -206,13 +236,13 @@ function App() {
             setSearch={setSearch}
             setStatus={setStatus}
             status={status}
-            zoneSources={config.zone_sources ?? []}
+            tldSchedules={config.expireddomains_tld_schedules ?? []}
           />
         )}
         {view === "config" && (
           <ConfigView
             config={config}
-            hasDirectRunSource={hasDirectRunSource}
+            hasDirectRunSource={hasCrawlerSource}
             hasRunningJob={hasRunningJob}
             onSaveConfig={saveConfig}
             onStartJob={startJobFromConfig}
@@ -251,9 +281,12 @@ function App() {
   }
 
   async function startJobFromConfig() {
-    const hasZoneSource = Boolean(config.zone_sources?.some((source) => source.enabled && source.tld && source.zone_url));
-    if (!hasZoneSource) {
-      window.alert("请先在配置中添加并启用至少一个 Zone 来源。");
+    const hasCrawlerConfig = Boolean(
+      config.expireddomains_accounts?.some((account) => account.enabled && account.username && account.password) &&
+      config.expireddomains_tld_schedules?.some((schedule) => schedule.enabled && schedule.tld)
+    );
+    if (!hasCrawlerConfig) {
+      window.alert("请先配置可用账号并启用至少一个后缀爬取计划。");
       return;
     }
     await saveConfig();
@@ -302,10 +335,10 @@ function Dashboard({
         <Metric label="可注册" value={stats.available} />
         <Metric label="疑似垃圾历史" value={stats.spam} />
         <Metric label="任务数" value={stats.jobs} />
-        <Metric label="原始删除域名" value={stats.deleted_domains ?? 0} />
+        <Metric label="今日源域名" value={stats.deleted_domains ?? 0} />
       </div>
       <div className="hint">
-        流程会读取已删除域名来源，依次执行规则过滤、品牌评分、可注册查询、Wayback 历史检查和邮件通知。
+        流程会抓取 ExpiredDomains.net 今日源数据，依次执行规则过滤、品牌评分、可注册二次查询、Wayback 历史检查和邮件通知。
       </div>
       <h2>高分候选</h2>
       <CandidateTable candidates={candidates.slice(0, 10)} />
@@ -348,7 +381,7 @@ function Candidates({
   setSearch,
   status,
   setStatus,
-  zoneSources
+  tldSchedules
 }: {
   candidates: Candidate[];
   previewConfig: PreviewConfig;
@@ -361,10 +394,10 @@ function Candidates({
   setSearch: (value: string) => void;
   status: string;
   setStatus: (value: string) => void;
-  zoneSources: ZoneSource[];
+  tldSchedules: TldSchedule[];
 }) {
   const tldOptions = Array.from(
-    new Set(zoneSources.map((source) => source.tld.trim().toLowerCase().replace(/^\./, "")).filter(Boolean))
+    new Set(tldSchedules.map((schedule) => schedule.tld.trim().toLowerCase().replace(/^\./, "")).filter(Boolean))
   );
 
   return (
@@ -372,7 +405,7 @@ function Candidates({
       <section className="candidatePreview">
         <div className="sectionHeader">
           <h2>临时过滤预览</h2>
-          <p>只读取已保存的 deleted domains 重新过滤和评分，不下载 Zone，不查询可注册状态，不发送通知。</p>
+          <p>只读取今日抓取的 ExpiredDomains.net 源数据重新过滤和评分，不重新抓取网页，不查询可注册状态，不发送通知。</p>
         </div>
         <div className="previewGrid">
           <label>
@@ -485,9 +518,21 @@ function ConfigView({
       fields: []
     },
     {
-      title: "数据源",
-      description: "可配置多个后缀的 Zone 来源。运行时会下载启用来源；有对应昨日 Zone 文件才计算差分，没有则跳过。",
-      zoneSources: true,
+      title: "数据源账号",
+      description: "配置多个 ExpiredDomains.net 账号；账号不可用时任务会切换到其他健康账号。",
+      accounts: true,
+      fields: []
+    },
+    {
+      title: "代理池",
+      description: "可选。账号可以绑定固定代理，代理用于稳定网络出口，不做高频轮换。",
+      proxies: true,
+      fields: []
+    },
+    {
+      title: "后缀爬取计划",
+      description: "不同后缀可以设置不同的每日爬取时间，只抓取 ExpiredDomains.net 每日更新列表。",
+      tldSchedules: true,
       fields: []
     },
     {
@@ -528,7 +573,7 @@ function ConfigView({
     },
     {
       title: "定时任务",
-      description: "启用后，后端服务会每天按固定时间自动运行完整流程。",
+      description: "启用后，后端会按每个后缀计划中的时间自动抓取并运行完整流程。",
       schedule: true,
       fields: []
     },
@@ -558,8 +603,12 @@ function ConfigView({
             <p>{group.description}</p>
           </div>
           <div className="configGrid">
-            {"zoneSources" in group && group.zoneSources ? (
-              <ZoneSourcesEditor config={config} setConfig={setConfig} />
+            {"accounts" in group && group.accounts ? (
+              <AccountsEditor config={config} onSaveConfig={onSaveConfig} setConfig={setConfig} setMessage={setMessage} />
+            ) : "proxies" in group && group.proxies ? (
+              <ProxiesEditor config={config} onSaveConfig={onSaveConfig} setConfig={setConfig} setMessage={setMessage} />
+            ) : "tldSchedules" in group && group.tldSchedules ? (
+              <TldSchedulesEditor config={config} onSaveConfig={onSaveConfig} setConfig={setConfig} setMessage={setMessage} />
             ) : "runtimePaths" in group && group.runtimePaths ? (
               <RuntimePathsEditor config={config} setConfig={setConfig} />
             ) : "schedule" in group && group.schedule ? (
@@ -596,7 +645,7 @@ function ConfigView({
         <Play size={18} />
         {hasRunningJob ? "按当前配置重启任务" : "启动任务"}
       </button>
-      {!hasDirectRunSource && <div className="hint">启动任务需要先添加并启用至少一个 Zone 来源；点击启动会弹出提示。</div>}
+      {!hasDirectRunSource && <div className="hint">启动任务需要先配置可用账号，并启用至少一个后缀爬取计划；点击启动会弹出提示。</div>}
     </section>
   );
 }
@@ -728,19 +777,6 @@ function RuntimePathsEditor({ config, setConfig }: { config: AppConfig; setConfi
 }
 
 function ScheduleEditor({ config, setConfig }: { config: AppConfig; setConfig: (value: AppConfig) => void }) {
-  const hour = Number(config.schedule_hour ?? 2);
-  const minute = Number(config.schedule_minute ?? 0);
-  const timeValue = `${String(clampTime(hour, 0, 23)).padStart(2, "0")}:${String(clampTime(minute, 0, 59)).padStart(2, "0")}`;
-
-  function updateTime(value: string) {
-    const [rawHour, rawMinute] = value.split(":");
-    setConfig({
-      ...config,
-      schedule_hour: clampTime(Number(rawHour), 0, 23),
-      schedule_minute: clampTime(Number(rawMinute), 0, 59)
-    });
-  }
-
   return (
     <>
       <label>
@@ -750,10 +786,6 @@ function ScheduleEditor({ config, setConfig }: { config: AppConfig; setConfig: (
           checked={Boolean(config.schedule_enabled)}
           onChange={(event) => setConfig({ ...config, schedule_enabled: event.target.checked })}
         />
-      </label>
-      <label>
-        <span>每日执行时间</span>
-        <input type="time" value={timeValue} onChange={(event) => updateTime(event.target.value)} />
       </label>
       <label>
         <span>失败重试次数</span>
@@ -813,54 +845,143 @@ function ConfigField({
   );
 }
 
-function ZoneSourcesEditor({ config, setConfig }: { config: AppConfig; setConfig: (value: AppConfig) => void }) {
-  const sources = config.zone_sources ?? [];
+function AccountsEditor({
+  config,
+  onSaveConfig,
+  setConfig,
+  setMessage
+}: {
+  config: AppConfig;
+  onSaveConfig: () => Promise<AppConfig>;
+  setConfig: (value: AppConfig) => void;
+  setMessage: (value: string) => void;
+}) {
+  const accounts = config.expireddomains_accounts ?? [];
+  const proxies = config.expireddomains_proxies ?? [];
 
-  function updateSource(index: number, patch: Partial<ZoneSource>) {
-    setConfig({
-      ...config,
-      zone_sources: sources.map((source, itemIndex) => (itemIndex === index ? { ...source, ...patch } : source))
-    });
+  function updateAccount(index: number, patch: Partial<CrawlerAccount>) {
+    setConfig({ ...config, expireddomains_accounts: accounts.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)) });
   }
 
-  function addSource() {
-    setConfig({
-      ...config,
-      zone_sources: [...sources, { tld: "", zone_url: "", bearer_token: "", enabled: true }]
-    });
-  }
-
-  function removeSource(index: number) {
-    setConfig({
-      ...config,
-      zone_sources: sources.filter((_, itemIndex) => itemIndex !== index)
-    });
+  async function testAccount(account: CrawlerAccount) {
+    await onSaveConfig();
+    await api<{ status: string }>(`/api/crawler/accounts/${encodeURIComponent(account.id)}/test`, { method: "POST" });
+    setMessage(`账号 ${account.username} 测试通过`);
   }
 
   return (
     <div className="zoneSources">
-      <div className="zoneHeader">
-        <span>启用</span>
-        <span>后缀</span>
-        <span>Zone 地址</span>
-        <span>Bearer Token</span>
-        <span>操作</span>
+      <div className="accountHeader">
+        <span>启用</span><span>账号</span><span>密码</span><span>绑定代理</span><span>状态</span><span>操作</span>
       </div>
-      {sources.map((source, index) => (
-        <div className="zoneRow" key={`${source.tld}-${index}`}>
-          <input type="checkbox" checked={source.enabled} onChange={(event) => updateSource(index, { enabled: event.target.checked })} />
-          <input value={source.tld} onChange={(event) => updateSource(index, { tld: event.target.value })} placeholder="com" />
-          <input value={source.zone_url} onChange={(event) => updateSource(index, { zone_url: event.target.value })} placeholder="https://..." />
-          <input
-            type="password"
-            value={source.bearer_token ?? ""}
-            onChange={(event) => updateSource(index, { bearer_token: event.target.value })}
-            placeholder="可选"
-          />
-          <button type="button" onClick={() => removeSource(index)}>删除</button>
+      {accounts.map((account, index) => (
+        <div className="accountRow" key={account.id || index}>
+          <input type="checkbox" checked={account.enabled} onChange={(event) => updateAccount(index, { enabled: event.target.checked })} />
+          <input value={account.username} onChange={(event) => updateAccount(index, { username: event.target.value })} placeholder="用户名" />
+          <input type="password" value={account.password ?? ""} onChange={(event) => updateAccount(index, { password: event.target.value })} placeholder="密码" />
+          <select value={account.proxy_id ?? ""} onChange={(event) => updateAccount(index, { proxy_id: event.target.value })}>
+            <option value="">默认/不使用</option>
+            {proxies.map((proxy) => <option key={proxy.id} value={proxy.id}>{proxy.name || proxy.id}</option>)}
+          </select>
+          <span className={`pill ${account.status || "healthy"}`}>{account.status || "healthy"}</span>
+          <div className="rowActions">
+            <button type="button" onClick={() => testAccount(account).catch((error) => setMessage(error.message))}>测试</button>
+            <button type="button" onClick={() => setConfig({ ...config, expireddomains_accounts: accounts.filter((_, itemIndex) => itemIndex !== index) })}>删除</button>
+          </div>
         </div>
       ))}
-      <button className="secondaryButton" type="button" onClick={addSource}>添加后缀来源</button>
+      <button className="secondaryButton" type="button" onClick={() => setConfig({ ...config, expireddomains_accounts: [...accounts, newAccount(accounts.length + 1)] })}>添加账号</button>
+    </div>
+  );
+}
+
+function ProxiesEditor({
+  config,
+  onSaveConfig,
+  setConfig,
+  setMessage
+}: {
+  config: AppConfig;
+  onSaveConfig: () => Promise<AppConfig>;
+  setConfig: (value: AppConfig) => void;
+  setMessage: (value: string) => void;
+}) {
+  const proxies = config.expireddomains_proxies ?? [];
+
+  function updateProxy(index: number, patch: Partial<CrawlerProxy>) {
+    setConfig({ ...config, expireddomains_proxies: proxies.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)) });
+  }
+
+  async function testProxy(proxy: CrawlerProxy) {
+    await onSaveConfig();
+    await api<{ status: string }>(`/api/crawler/proxies/${encodeURIComponent(proxy.id)}/test`, { method: "POST" });
+    setMessage(`代理 ${proxy.name || proxy.id} 测试通过`);
+  }
+
+  return (
+    <div className="zoneSources">
+      <div className="proxyHeader">
+        <span>启用</span><span>名称</span><span>代理 URL</span><span>状态</span><span>操作</span>
+      </div>
+      {proxies.map((proxy, index) => (
+        <div className="proxyRow" key={proxy.id || index}>
+          <input type="checkbox" checked={proxy.enabled} onChange={(event) => updateProxy(index, { enabled: event.target.checked })} />
+          <input value={proxy.name} onChange={(event) => updateProxy(index, { name: event.target.value })} placeholder="proxy-us-1" />
+          <input type="password" value={proxy.url ?? ""} onChange={(event) => updateProxy(index, { url: event.target.value })} placeholder="http://user:pass@host:port" />
+          <span className={`pill ${proxy.status || "healthy"}`}>{proxy.status || "healthy"}</span>
+          <div className="rowActions">
+            <button type="button" onClick={() => testProxy(proxy).catch((error) => setMessage(error.message))}>测试</button>
+            <button type="button" onClick={() => setConfig({ ...config, expireddomains_proxies: proxies.filter((_, itemIndex) => itemIndex !== index) })}>删除</button>
+          </div>
+        </div>
+      ))}
+      <button className="secondaryButton" type="button" onClick={() => setConfig({ ...config, expireddomains_proxies: [...proxies, newProxy(proxies.length + 1)] })}>添加代理</button>
+    </div>
+  );
+}
+
+function TldSchedulesEditor({
+  config,
+  onSaveConfig,
+  setConfig,
+  setMessage
+}: {
+  config: AppConfig;
+  onSaveConfig: () => Promise<AppConfig>;
+  setConfig: (value: AppConfig) => void;
+  setMessage: (value: string) => void;
+}) {
+  const schedules = config.expireddomains_tld_schedules ?? [];
+
+  function updateSchedule(index: number, patch: Partial<TldSchedule>) {
+    setConfig({ ...config, expireddomains_tld_schedules: schedules.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)) });
+  }
+
+  async function testFetch(schedule: TldSchedule) {
+    await onSaveConfig();
+    const result = await api<{ pages_fetched: number; domains_seen: number; available_seen: number }>(`/api/crawler/tlds/${encodeURIComponent(schedule.tld)}/test-fetch`, { method: "POST" });
+    setMessage(`${schedule.tld} 测试抓取完成：${result.pages_fetched} 页，发现 ${result.domains_seen} 个，可注册初筛 ${result.available_seen} 个`);
+  }
+
+  return (
+    <div className="zoneSources">
+      <div className="scheduleHeader">
+        <span>启用</span><span>后缀</span><span>每日时间</span><span>最大页数</span><span>间隔秒</span><span>操作</span>
+      </div>
+      {schedules.map((schedule, index) => (
+        <div className="scheduleRow" key={`${schedule.tld}-${index}`}>
+          <input type="checkbox" checked={schedule.enabled} onChange={(event) => updateSchedule(index, { enabled: event.target.checked })} />
+          <input value={schedule.tld} onChange={(event) => updateSchedule(index, { tld: event.target.value })} placeholder="com" />
+          <input type="time" value={timeFromSchedule(schedule)} onChange={(event) => updateSchedule(index, scheduleTimePatch(event.target.value))} />
+          <input type="number" min="1" value={String(schedule.max_pages ?? 20)} onChange={(event) => updateSchedule(index, { max_pages: Number(event.target.value) })} />
+          <input type="number" min="0" value={String(schedule.request_delay_seconds ?? 12)} onChange={(event) => updateSchedule(index, { request_delay_seconds: Number(event.target.value) })} />
+          <div className="rowActions">
+            <button type="button" onClick={() => testFetch(schedule).catch((error) => setMessage(error.message))}>测试</button>
+            <button type="button" onClick={() => setConfig({ ...config, expireddomains_tld_schedules: schedules.filter((_, itemIndex) => itemIndex !== index) })}>删除</button>
+          </div>
+        </div>
+      ))}
+      <button className="secondaryButton" type="button" onClick={() => setConfig({ ...config, expireddomains_tld_schedules: [...schedules, newSchedule()] })}>添加后缀计划</button>
     </div>
   );
 }
@@ -996,6 +1117,51 @@ function defaultPreviewConfig(): PreviewConfig {
     filter_max_consecutive_consonants: 3,
     top_candidates: 100,
     min_score: 40
+  };
+}
+
+function newAccount(index: number): CrawlerAccount {
+  return {
+    id: `acc-${Date.now()}-${index}`,
+    username: "",
+    password: "",
+    proxy_id: "",
+    enabled: true,
+    status: "healthy"
+  };
+}
+
+function newProxy(index: number): CrawlerProxy {
+  return {
+    id: `proxy-${Date.now()}-${index}`,
+    name: `proxy-${index}`,
+    url: "",
+    enabled: true,
+    status: "healthy"
+  };
+}
+
+function newSchedule(): TldSchedule {
+  return {
+    tld: "com",
+    enabled: true,
+    crawl_hour: 2,
+    crawl_minute: 0,
+    timezone: "Asia/Shanghai",
+    max_pages: 20,
+    request_delay_seconds: 12
+  };
+}
+
+function timeFromSchedule(schedule: TldSchedule) {
+  return `${String(clampTime(Number(schedule.crawl_hour ?? 2), 0, 23)).padStart(2, "0")}:${String(clampTime(Number(schedule.crawl_minute ?? 0), 0, 59)).padStart(2, "0")}`;
+}
+
+function scheduleTimePatch(value: string): Partial<TldSchedule> {
+  const [hour, minute] = value.split(":");
+  return {
+    crawl_hour: clampTime(Number(hour), 0, 23),
+    crawl_minute: clampTime(Number(minute), 0, 59)
   };
 }
 

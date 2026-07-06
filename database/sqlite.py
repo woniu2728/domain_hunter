@@ -6,7 +6,7 @@ import json
 
 import aiosqlite
 
-from domain_hunter.types import DomainCandidate, HistoryResult, JobSummary, ScoreResult
+from domain_hunter.types import DomainCandidate, HistoryResult, JobSummary, ScoreResult, SourceDomain
 
 
 SCHEMA = """
@@ -76,6 +76,35 @@ CREATE TABLE IF NOT EXISTS zone_diff (
     source TEXT NOT NULL DEFAULT 'zone',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(domain, diff_date)
+);
+
+CREATE TABLE IF NOT EXISTS deleted_domain_sources (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    domain TEXT NOT NULL,
+    tld TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    source_status TEXT NOT NULL,
+    dropped_date TEXT,
+    source_date TEXT NOT NULL,
+    metrics_json TEXT NOT NULL DEFAULT '{}',
+    first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(domain, provider, source_date)
+);
+
+CREATE TABLE IF NOT EXISTS crawler_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider TEXT NOT NULL,
+    tld TEXT NOT NULL,
+    account_id TEXT,
+    proxy_id TEXT,
+    status TEXT NOT NULL,
+    started_at TEXT,
+    finished_at TEXT,
+    pages_fetched INTEGER NOT NULL DEFAULT 0,
+    domains_seen INTEGER NOT NULL DEFAULT 0,
+    available_seen INTEGER NOT NULL DEFAULT 0,
+    error TEXT
 );
 """
 
@@ -219,6 +248,148 @@ class Database:
                 rows,
             )
             await db.commit()
+
+    async def upsert_source_domains(
+        self,
+        domains: Iterable[SourceDomain],
+        source_date: str,
+        provider: str = "expireddomains",
+    ) -> None:
+        rows = [
+            (
+                item.domain,
+                item.tld,
+                provider,
+                item.source_status,
+                item.dropped_date,
+                source_date,
+                json.dumps(item.metrics),
+            )
+            for item in domains
+        ]
+        if not rows:
+            return
+        async with aiosqlite.connect(self.path) as db:
+            await db.executemany(
+                """
+                INSERT INTO deleted_domain_sources(domain, tld, provider, source_status, dropped_date, source_date, metrics_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(domain, provider, source_date) DO UPDATE SET
+                    tld=excluded.tld,
+                    source_status=excluded.source_status,
+                    dropped_date=excluded.dropped_date,
+                    metrics_json=excluded.metrics_json,
+                    last_seen_at=CURRENT_TIMESTAMP
+                """,
+                rows,
+            )
+            await db.commit()
+
+    async def clear_old_source_domains(self, keep_from_date: str, provider: str = "expireddomains") -> None:
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                "DELETE FROM deleted_domain_sources WHERE provider = ? AND source_date < ?",
+                (provider, keep_from_date),
+            )
+            await db.commit()
+
+    async def list_source_domains(
+        self,
+        source_date: str,
+        limit: int = 5000,
+        tlds: list[str] | None = None,
+        search: str | None = None,
+        provider: str = "expireddomains",
+    ) -> list[str]:
+        clauses = ["provider = ?", "source_date = ?", "source_status = 'available'"]
+        params: list[Any] = [provider, source_date]
+        if tlds:
+            placeholders = ", ".join("?" for _ in tlds)
+            clauses.append(f"tld IN ({placeholders})")
+            params.extend(tlds)
+        if search:
+            clauses.append("domain LIKE ?")
+            params.append(f"%{search}%")
+        params.append(limit)
+        async with aiosqlite.connect(self.path) as db:
+            rows = await db.execute_fetchall(
+                f"""
+                SELECT domain
+                FROM deleted_domain_sources
+                WHERE {' AND '.join(clauses)}
+                ORDER BY domain ASC
+                LIMIT ?
+                """,
+                tuple(params),
+            )
+        return [row[0] for row in rows]
+
+    async def source_domain_stats(self, source_date: str, provider: str = "expireddomains") -> dict[str, int]:
+        async with aiosqlite.connect(self.path) as db:
+            total = (
+                await db.execute_fetchall(
+                    "SELECT COUNT(DISTINCT domain) FROM deleted_domain_sources WHERE provider = ? AND source_date = ?",
+                    (provider, source_date),
+                )
+            )[0][0]
+            tlds = (
+                await db.execute_fetchall(
+                    "SELECT COUNT(DISTINCT tld) FROM deleted_domain_sources WHERE provider = ? AND source_date = ?",
+                    (provider, source_date),
+                )
+            )[0][0]
+        return {"deleted_domains": total, "deleted_tlds": tlds}
+
+    async def create_crawler_run(self, provider: str, tld: str, account_id: str = "", proxy_id: str = "") -> int:
+        async with aiosqlite.connect(self.path) as db:
+            cursor = await db.execute(
+                """
+                INSERT INTO crawler_runs(provider, tld, account_id, proxy_id, status, started_at)
+                VALUES (?, ?, ?, ?, 'running', CURRENT_TIMESTAMP)
+                """,
+                (provider, tld, account_id, proxy_id),
+            )
+            await db.commit()
+            return int(cursor.lastrowid)
+
+    async def finish_crawler_run(
+        self,
+        run_id: int,
+        status: str,
+        pages_fetched: int,
+        domains_seen: int,
+        available_seen: int,
+        error: str | None = None,
+    ) -> None:
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                """
+                UPDATE crawler_runs
+                SET status = ?,
+                    finished_at = CURRENT_TIMESTAMP,
+                    pages_fetched = ?,
+                    domains_seen = ?,
+                    available_seen = ?,
+                    error = ?
+                WHERE id = ?
+                """,
+                (status, pages_fetched, domains_seen, available_seen, error, run_id),
+            )
+            await db.commit()
+
+    async def crawler_run_stats(self) -> dict[str, int]:
+        async with aiosqlite.connect(self.path) as db:
+            today_runs = (
+                await db.execute_fetchall(
+                    "SELECT COUNT(*) FROM crawler_runs WHERE date(started_at) = date('now')"
+                )
+            )[0][0]
+            failed_runs = (
+                await db.execute_fetchall(
+                    "SELECT COUNT(*) FROM crawler_runs WHERE status = 'failed'"
+                )
+            )[0][0]
+        return {"crawler_runs": today_runs, "crawler_failed_runs": failed_runs}
 
     async def list_zone_diff_domains(
         self,

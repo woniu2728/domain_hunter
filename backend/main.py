@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from datetime import date
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.services.config_service import ConfigService
+from backend.services.crawl_runner_service import test_account, test_fetch_first_page, test_proxy
 from backend.services.job_runner_service import job_runner_service
 from backend.services.scheduler_service import scheduler_service
 from config import get_settings
@@ -104,7 +107,8 @@ async def stats() -> dict:
     db = _db()
     await db.init()
     data = await db.stats()
-    data.update(await db.zone_diff_stats())
+    data.update(await db.source_domain_stats(date.today().isoformat()))
+    data.update(await db.crawler_run_stats())
     return data
 
 
@@ -122,7 +126,8 @@ async def preview_domains(payload: dict) -> dict:
     stored_config = await ConfigService(db).get_config()
     config = _preview_config(payload, stored_config)
     tlds = _preview_tlds(payload)
-    raw_domains = await db.list_zone_diff_domains(
+    raw_domains = await db.list_source_domains(
+        source_date=date.today().isoformat(),
         limit=int(payload.get("source_limit", 5000)),
         tlds=tlds,
         search=str(payload.get("search") or "").strip() or None,
@@ -181,6 +186,38 @@ async def run_job(payload: dict | None = None) -> dict:
 async def stop_job() -> dict[str, str]:
     await job_runner_service.cancel_running("用户手动停止任务")
     return {"status": "cancelled"}
+
+
+@app.post("/api/crawler/accounts/{account_id}/test")
+async def test_crawler_account(account_id: str) -> dict[str, str]:
+    db = _db()
+    await db.init()
+    try:
+        await test_account(db, account_id)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"账号测试失败：{exc}") from exc
+    return {"status": "ok"}
+
+
+@app.post("/api/crawler/proxies/{proxy_id}/test")
+async def test_crawler_proxy(proxy_id: str) -> dict[str, str]:
+    db = _db()
+    await db.init()
+    try:
+        await test_proxy(db, proxy_id)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"代理测试失败：{exc}") from exc
+    return {"status": "ok"}
+
+
+@app.post("/api/crawler/tlds/{tld}/test-fetch")
+async def test_crawler_tld(tld: str) -> dict:
+    db = _db()
+    await db.init()
+    try:
+        return await test_fetch_first_page(db, tld)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"测试抓取失败：{exc}") from exc
 
 
 def _preview_config(payload: dict, base_config: AppConfig) -> AppConfig:

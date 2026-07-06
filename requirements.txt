@@ -16,3 +16,4 @@ typer
 fastapi
 uvicorn
 python-multipart
+scrapling[fetchers]
