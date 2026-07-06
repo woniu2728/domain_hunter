@@ -310,7 +310,6 @@ function Dashboard({
       <div className="metrics">
         <Metric label="域名总数" value={stats.domains} />
         <Metric label="可注册" value={stats.available} />
-        <Metric label="疑似垃圾历史" value={stats.spam} />
         <Metric label="任务数" value={stats.jobs} />
         <Metric label="今日源域名" value={stats.deleted_domains ?? 0} />
       </div>
@@ -965,7 +964,6 @@ function CandidateTable({ candidates }: { candidates: Candidate[] }) {
             <th>域名</th>
             <th>评分</th>
             <th>状态</th>
-            <th>历史</th>
             <th>评分原因</th>
           </tr>
         </thead>
@@ -975,7 +973,6 @@ function CandidateTable({ candidates }: { candidates: Candidate[] }) {
               <td>{item.domain}</td>
               <td>{item.total_score ?? "-"}</td>
               <td><span className={`pill ${item.status}`}>{statusLabel(item.status)}</span></td>
-              <td>{item.spam ? "疑似垃圾历史" : item.notes || "干净"}</td>
               <td>{item.reasons || "-"}</td>
             </tr>
           ))}

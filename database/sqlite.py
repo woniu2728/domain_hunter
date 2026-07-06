@@ -626,11 +626,9 @@ class Database:
             rows = await db.execute_fetchall(
                 f"""
                 SELECT d.domain, d.tld, d.length, d.deleted_date, d.status,
-                       s.brand_score, s.dictionary_score, s.trend_score, s.total_score, s.reasons,
-                       h.archive, h.spam, h.notes
+                       s.brand_score, s.dictionary_score, s.trend_score, s.total_score, s.reasons
                 FROM domains d
                 LEFT JOIN score s ON s.domain_id = d.id
-                LEFT JOIN history h ON h.domain_id = d.id
                 {where}
                 ORDER BY COALESCE(s.total_score, 0) DESC, d.updated_at DESC
                 LIMIT ?
