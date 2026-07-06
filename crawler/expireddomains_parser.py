@@ -39,7 +39,7 @@ def parse_deleted_domains(html: str, tld: str) -> tuple[list[SourceDomain], int,
         if not domain or "." not in domain:
             continue
         seen += 1
-        status = _clean_text(cells[status_index].get_text(" ")) if status_index is not None and len(cells) > status_index else ""
+        status = _clean_text(cells[status_index].get_text(" ")) if status_index is not None and len(cells) > status_index else "available"
         if status and "available" not in status.lower():
             continue
         dropped = _clean_text(cells[dropped_index].get_text(" ")) if dropped_index is not None and len(cells) > dropped_index else None
@@ -59,9 +59,14 @@ def parse_deleted_domains(html: str, tld: str) -> tuple[list[SourceDomain], int,
 
 
 def _find_domain_table(soup: BeautifulSoup):
+    listing = soup.select_one("#listing")
+    if listing:
+        table = listing.find("table")
+        if table:
+            return table
     for table in soup.find_all("table"):
         text = table.get_text(" ").lower()
-        if "domain" in text and ("status" in text or "available" in text):
+        if "domain" in text and ("status" in text or "available" in text or "changes" in text or "whois" in text):
             return table
     return None
 
