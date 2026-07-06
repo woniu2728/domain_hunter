@@ -646,16 +646,27 @@ th {
 }
 
 .scheduleCard .mobileFieldLabel {
+  align-items: center;
   color: #56616b;
-  display: block;
+  display: flex;
   font-size: 13px;
-  margin-bottom: 6px;
+  line-height: 18px;
+  min-height: 18px;
 }
 
 .scheduleCard .mobileField {
   display: grid;
   gap: 6px;
+  grid-template-rows: 18px 38px;
   min-width: 0;
+}
+
+.scheduleCard .toggleField {
+  align-self: end;
+}
+
+.scheduleCard .switchControl {
+  height: 38px;
 }
 
 .scheduleCard button:not(.switchControl),
