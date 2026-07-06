@@ -779,12 +779,33 @@ function ConfigField({
   );
 }
 
-function MobileField({ children, className = "", label }: { children: React.ReactNode; className?: string; label: string }) {
-  return (
-    <label className={`mobileField ${className}`.trim()}>
+function MobileField({
+  as = "label",
+  children,
+  className = "",
+  label
+}: {
+  as?: "div" | "label";
+  children: React.ReactNode;
+  className?: string;
+  label: string;
+}) {
+  const content = (
+    <>
       <span className="mobileFieldLabel">{label}</span>
       {children}
-    </label>
+    </>
+  );
+  const fieldClassName = `mobileField ${className}`.trim();
+  return as === "div" ? <div className={fieldClassName}>{content}</div> : <label className={fieldClassName}>{content}</label>;
+}
+
+function ToggleSwitch({ checked, label, onChange }: { checked: boolean; label: string; onChange: (checked: boolean) => void }) {
+  return (
+    <button aria-label={label} aria-pressed={checked} className={`switchControl ${checked ? "checked" : ""}`} onClick={() => onChange(!checked)} type="button">
+      <span className="switchTrack" aria-hidden="true"><span className="switchThumb" /></span>
+      <span className="switchText">{checked ? "允许" : "不允许"}</span>
+    </button>
   );
 }
 
@@ -919,42 +940,34 @@ function TldSchedulesEditor({
   }
 
   return (
-    <div className="sourceRows">
-      <div className="scheduleHeader">
-        <span>启用</span><span>后缀</span><span>每日时间</span><span>时区</span><span>最大长度</span><span>允许数字</span><span>最大页数</span><span>间隔秒</span><span>操作</span>
-      </div>
+    <div className="sourceRows scheduleRows">
       {schedules.length === 0 && <div className="emptyState">至少添加一个后缀计划后才能启动任务。</div>}
       {schedules.map((schedule, index) => (
-        <div className="scheduleRow" key={`${schedule.tld}-${index}`}>
-          <MobileField label="启用"><input type="checkbox" checked={schedule.enabled} onChange={(event) => updateSchedule(index, { enabled: event.target.checked })} /></MobileField>
-          <MobileField label="后缀">
-            <select value={normalizeTld(schedule.tld)} onChange={(event) => updateSchedule(index, { tld: event.target.value })}>
-              {schedule.tld && !TLD_OPTIONS.includes(normalizeTld(schedule.tld)) && <option value={normalizeTld(schedule.tld)}>{normalizeTld(schedule.tld)}</option>}
-              {TLD_OPTIONS.map((tld) => <option key={tld} value={tld}>{tld}</option>)}
-            </select>
-          </MobileField>
-          <MobileField label="每日时间"><input type="time" value={timeFromSchedule(schedule)} onChange={(event) => updateSchedule(index, scheduleTimePatch(event.target.value))} /></MobileField>
-          <MobileField label="时区">
-            <select value={schedule.timezone || "Asia/Shanghai"} onChange={(event) => updateSchedule(index, { timezone: event.target.value })}>
-              {TIMEZONE_OPTIONS.map((timezone) => <option key={timezone} value={timezone}>{timezone}</option>)}
-            </select>
-          </MobileField>
-          <MobileField label="最大长度"><input type="number" min="1" value={String(schedule.filter_max_length ?? 5)} onChange={(event) => updateSchedule(index, { filter_max_length: Number(event.target.value) })} /></MobileField>
-          <MobileField className="toggleField" label="允许数字">
-            <span className={`switchControl ${schedule.filter_allow_digits ? "checked" : ""}`}>
-              <input
-                aria-label={`${schedule.tld} 允许数字`}
-                type="checkbox"
-                checked={Boolean(schedule.filter_allow_digits)}
-                onChange={(event) => updateSchedule(index, { filter_allow_digits: event.target.checked })}
-              />
-              <span className="switchTrack" aria-hidden="true"><span className="switchThumb" /></span>
-              <span className="switchText">{schedule.filter_allow_digits ? "允许" : "不允许"}</span>
-            </span>
-          </MobileField>
-          <MobileField label="最大页数"><input type="number" min="1" value={String(schedule.max_pages ?? 20)} onChange={(event) => updateSchedule(index, { max_pages: Number(event.target.value) })} /></MobileField>
-          <MobileField label="间隔秒"><input type="number" min="0" value={String(schedule.request_delay_seconds ?? 12)} onChange={(event) => updateSchedule(index, { request_delay_seconds: Number(event.target.value) })} /></MobileField>
-          <div className="rowActions">
+        <div className="scheduleCard" key={`${schedule.tld}-${index}`}>
+          <div className="scheduleMain">
+            <MobileField label="启用"><input type="checkbox" checked={schedule.enabled} onChange={(event) => updateSchedule(index, { enabled: event.target.checked })} /></MobileField>
+            <MobileField label="后缀">
+              <select value={normalizeTld(schedule.tld)} onChange={(event) => updateSchedule(index, { tld: event.target.value })}>
+                {schedule.tld && !TLD_OPTIONS.includes(normalizeTld(schedule.tld)) && <option value={normalizeTld(schedule.tld)}>{normalizeTld(schedule.tld)}</option>}
+                {TLD_OPTIONS.map((tld) => <option key={tld} value={tld}>{tld}</option>)}
+              </select>
+            </MobileField>
+            <MobileField label="每日时间"><input type="time" value={timeFromSchedule(schedule)} onChange={(event) => updateSchedule(index, scheduleTimePatch(event.target.value))} /></MobileField>
+            <MobileField label="时区">
+              <select value={schedule.timezone || "Asia/Shanghai"} onChange={(event) => updateSchedule(index, { timezone: event.target.value })}>
+                {TIMEZONE_OPTIONS.map((timezone) => <option key={timezone} value={timezone}>{timezone}</option>)}
+              </select>
+            </MobileField>
+          </div>
+          <div className="scheduleParams">
+            <MobileField label="最大长度"><input type="number" min="1" value={String(schedule.filter_max_length ?? 5)} onChange={(event) => updateSchedule(index, { filter_max_length: Number(event.target.value) })} /></MobileField>
+            <MobileField as="div" className="toggleField" label="允许数字">
+              <ToggleSwitch checked={Boolean(schedule.filter_allow_digits)} label={`${schedule.tld} 允许数字`} onChange={(checked) => updateSchedule(index, { filter_allow_digits: checked })} />
+            </MobileField>
+            <MobileField label="最大页数"><input type="number" min="1" value={String(schedule.max_pages ?? 20)} onChange={(event) => updateSchedule(index, { max_pages: Number(event.target.value) })} /></MobileField>
+            <MobileField label="间隔秒"><input type="number" min="0" value={String(schedule.request_delay_seconds ?? 12)} onChange={(event) => updateSchedule(index, { request_delay_seconds: Number(event.target.value) })} /></MobileField>
+          </div>
+          <div className="rowActions scheduleActions">
             <button type="button" onClick={() => testFetch(schedule).catch((error) => setMessage(error.message))}>测试</button>
             <button type="button" onClick={() => setConfig({ ...config, expireddomains_tld_schedules: schedules.filter((_, itemIndex) => itemIndex !== index) })}>删除</button>
           </div>

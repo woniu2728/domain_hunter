@@ -31,6 +31,7 @@ label select,
 label textarea,
 .sourceRows input,
 .sourceRows select,
+.sourceRows button.switchControl,
 .runtimePaths input {
   min-width: 0;
   width: 100%;
@@ -523,9 +524,7 @@ th {
 .accountHeader,
 .accountRow,
 .proxyHeader,
-.proxyRow,
-.scheduleHeader,
-.scheduleRow {
+.proxyRow {
   display: grid;
   gap: 10px;
   align-items: center;
@@ -533,8 +532,7 @@ th {
 }
 
 .accountHeader,
-.proxyHeader,
-.scheduleHeader {
+.proxyHeader {
   color: #56616b;
   font-size: 13px;
   font-weight: 600;
@@ -550,17 +548,12 @@ th {
   grid-template-columns: 56px minmax(130px, 170px) minmax(220px, 1fr) 92px 122px;
 }
 
-.scheduleHeader,
-.scheduleRow {
-  grid-template-columns: 48px minmax(72px, 88px) minmax(104px, 116px) minmax(132px, 1fr) minmax(82px, 92px) 108px minmax(82px, 92px) minmax(82px, 92px) 118px;
-}
-
 .accountRow input,
 .accountRow select,
 .proxyRow input,
 .proxyRow select,
-.scheduleRow input,
-.scheduleRow select {
+.scheduleCard input,
+.scheduleCard select {
   height: 38px;
   border: 1px solid #cbd4dd;
   border-radius: 7px;
@@ -570,7 +563,7 @@ th {
 
 .accountRow input[type="checkbox"],
 .proxyRow input[type="checkbox"],
-.scheduleRow input[type="checkbox"] {
+.scheduleCard input[type="checkbox"] {
   width: 20px;
   height: 20px;
 }
@@ -587,26 +580,21 @@ th {
 
 .switchControl {
   align-items: center;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
   display: inline-flex;
   gap: 7px;
+  justify-content: flex-start;
   min-width: 0;
-  white-space: nowrap;
-}
-
-.switchControl input {
-  border: 0;
-  height: 1px;
-  margin: 0;
-  opacity: 0;
   padding: 0;
-  pointer-events: none;
-  position: absolute;
-  width: 1px;
+  white-space: nowrap;
 }
 
 .switchTrack {
   background: #cbd4dd;
   border-radius: 999px;
+  flex: 0 0 auto;
   display: inline-flex;
   height: 20px;
   padding: 2px;
@@ -635,6 +623,55 @@ th {
   color: #56616b;
   font-size: 13px;
   min-width: 42px;
+}
+
+.scheduleRows {
+  gap: 10px;
+}
+
+.scheduleCard {
+  background: #fafbfc;
+  border: 1px solid #e4e9ee;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  min-width: 0;
+}
+
+.scheduleMain,
+.scheduleParams {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.scheduleMain {
+  align-items: end;
+  grid-template-columns: 48px minmax(82px, 96px) minmax(120px, 150px) minmax(180px, 1fr);
+}
+
+.scheduleParams {
+  align-items: end;
+  grid-template-columns: repeat(4, minmax(112px, 160px));
+}
+
+.scheduleCard .mobileFieldLabel {
+  color: #56616b;
+  display: block;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.scheduleCard .mobileField {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.scheduleActions {
+  justify-self: end;
+  width: 122px;
 }
 
 .rowActions button,
@@ -738,18 +775,26 @@ th {
   }
 
   .accountHeader,
-  .proxyHeader,
-  .scheduleHeader {
+  .proxyHeader {
     display: none;
   }
 
   .accountRow,
-  .proxyRow,
-  .scheduleRow {
+  .proxyRow {
     grid-template-columns: 1fr;
     border: 1px solid #e4e9ee;
     border-radius: 8px;
     padding: 10px;
+  }
+
+  .scheduleMain,
+  .scheduleParams {
+    grid-template-columns: 1fr;
+  }
+
+  .scheduleActions {
+    justify-self: stretch;
+    width: 100%;
   }
 
   .mobileField {
