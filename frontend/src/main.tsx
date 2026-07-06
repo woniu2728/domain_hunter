@@ -352,8 +352,6 @@ function Dashboard({
       <div className="hint">
         流程会抓取 ExpiredDomains.net 今日源数据，依次执行规则过滤、品牌评分、可注册二次查询、Wayback 历史检查和邮件通知。
       </div>
-      <h2>高分候选</h2>
-      <CandidateTable candidates={candidates.slice(0, 10)} />
       <div className="sectionTitleRow">
         <h2>最近任务</h2>
         <div className="taskActions">
