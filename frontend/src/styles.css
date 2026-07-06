@@ -638,7 +638,7 @@ th {
 }
 
 .scheduleCompact {
-  align-items: end;
+  align-items: start;
   display: grid;
   gap: 10px;
   grid-template-columns: 48px minmax(96px, 120px) minmax(104px, 128px) minmax(126px, 150px) minmax(0, 1fr);
@@ -661,8 +661,11 @@ th {
   min-width: 0;
 }
 
-.scheduleCard .toggleField {
-  align-self: end;
+.configGrid .scheduleCard .toggleField {
+  background: #fafbfc;
+  border: 1px solid #e4e9ee;
+  border-radius: 8px;
+  padding: 12px;
 }
 
 .scheduleCard .switchControl {
@@ -684,6 +687,7 @@ th {
 
 .scheduleCompactActions {
   align-items: end;
+  align-self: end;
   display: flex;
   gap: 8px;
   justify-content: flex-end;
