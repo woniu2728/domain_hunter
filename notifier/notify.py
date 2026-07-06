@@ -9,6 +9,8 @@ from rich.table import Table
 
 from domain_hunter.types import AppConfig, HistoryResult, ScoreResult
 
+REPORT_LIMIT = 100
+
 
 async def notify_results(
     scores: Iterable[ScoreResult],
@@ -16,15 +18,14 @@ async def notify_results(
     config: AppConfig,
 ) -> None:
     score_list = list(scores)
-    history_by_domain = {history.domain: history for history in histories}
 
     if not score_list and not config.send_empty_report:
         return
 
     if _email_configured(config):
-        _send_email(config, score_list, history_by_domain)
+        _send_email(config, score_list)
         return
-    _print_console(score_list, history_by_domain)
+    _print_console(score_list)
 
 
 def _email_configured(config: AppConfig) -> bool:
@@ -34,14 +35,14 @@ def _email_configured(config: AppConfig) -> bool:
 def _send_email(
     config: AppConfig,
     scores: list[ScoreResult],
-    history_by_domain: dict[str, HistoryResult],
 ) -> None:
+    top_scores = _top_scores(scores)
     message = EmailMessage()
     message["Subject"] = "Domain Hunter - Candidate Report"
     message["From"] = config.email_from
     message["To"] = config.email_to
-    message.set_content(_plain_text(scores, history_by_domain))
-    message.add_alternative(_html_report(scores, history_by_domain), subtype="html")
+    message.set_content(_plain_text(top_scores))
+    message.add_alternative(_html_report(top_scores), subtype="html")
 
     with smtplib.SMTP(config.smtp_host, config.smtp_port, timeout=20) as smtp:
         if config.smtp_use_tls:
@@ -97,37 +98,34 @@ async def notify_job_failure(config: AppConfig, job_id: int, source: str, error:
         smtp.send_message(message)
 
 
-def _plain_text(scores: list[ScoreResult], history_by_domain: dict[str, HistoryResult]) -> str:
+def _plain_text(scores: list[ScoreResult]) -> str:
     if not scores:
         return "No clean available candidates found."
-    lines = ["Domain Hunter candidates:"]
-    for score in scores[:50]:
-        history = history_by_domain.get(score.domain)
-        history_note = history.notes if history else "未检查"
-        lines.append(f"{score.domain} score={score.total_score} history={history_note}")
+    lines = [f"Domain Hunter candidates (Top {len(scores)}):"]
+    for score in scores:
+        reason_text = ", ".join(score.reasons)
+        lines.append(f"{score.domain} score={score.total_score} reasons={reason_text}")
     return "\n".join(lines)
 
 
-def _html_report(scores: list[ScoreResult], history_by_domain: dict[str, HistoryResult]) -> str:
+def _html_report(scores: list[ScoreResult]) -> str:
     rows = []
-    for score in scores[:100]:
-        history = history_by_domain.get(score.domain)
+    for score in scores:
         rows.append(
             "<tr>"
             f"<td>{_escape(score.domain)}</td>"
             f"<td>{score.total_score}</td>"
             f"<td>{_escape(', '.join(score.reasons))}</td>"
-            f"<td>{_escape(history.notes if history else '未检查')}</td>"
             "</tr>"
         )
-    body = "\n".join(rows) or "<tr><td colspan='4'>No clean available candidates found.</td></tr>"
+    body = "\n".join(rows) or "<tr><td colspan='3'>No clean available candidates found.</td></tr>"
     return f"""
     <html>
       <body>
-        <h2>Domain Hunter Candidate Report</h2>
+        <h2>Domain Hunter Candidate Report - Top {REPORT_LIMIT}</h2>
         <table border="1" cellpadding="8" cellspacing="0">
           <thead>
-            <tr><th>Domain</th><th>Score</th><th>Reasons</th><th>History</th></tr>
+            <tr><th>Domain</th><th>Score</th><th>Reasons</th></tr>
           </thead>
           <tbody>{body}</tbody>
         </table>
@@ -145,16 +143,17 @@ def _escape(value: str) -> str:
     )
 
 
-def _print_console(scores: list[ScoreResult], history_by_domain: dict[str, HistoryResult]) -> None:
+def _print_console(scores: list[ScoreResult]) -> None:
     console = Console()
     table = Table(title="Domain Hunter candidates")
     table.add_column("Domain")
     table.add_column("Score", justify="right")
     table.add_column("Reasons")
-    table.add_column("History")
 
-    for score in scores[:50]:
-        history = history_by_domain.get(score.domain)
-        history_note = history.notes if history else "未检查"
-        table.add_row(score.domain, str(score.total_score), ", ".join(score.reasons), history_note)
+    for score in _top_scores(scores):
+        table.add_row(score.domain, str(score.total_score), ", ".join(score.reasons))
     console.print(table)
+
+
+def _top_scores(scores: list[ScoreResult]) -> list[ScoreResult]:
+    return sorted(scores, key=lambda score: (-score.total_score, score.domain))[:REPORT_LIMIT]

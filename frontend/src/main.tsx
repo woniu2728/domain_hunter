@@ -779,9 +779,9 @@ function ConfigField({
   );
 }
 
-function MobileField({ children, label }: { children: React.ReactNode; label: string }) {
+function MobileField({ children, className = "", label }: { children: React.ReactNode; className?: string; label: string }) {
   return (
-    <label className="mobileField">
+    <label className={`mobileField ${className}`.trim()}>
       <span className="mobileFieldLabel">{label}</span>
       {children}
     </label>
@@ -829,7 +829,11 @@ function AccountsEditor({
               {proxies.map((proxy) => <option key={proxy.id} value={proxy.id}>{proxy.name || proxy.id}</option>)}
             </select>
           </MobileField>
-          <MobileField label="状态"><span className={`pill ${account.status || "healthy"}`} title={account.last_error || ""}>{crawlerStatusLabel(account.status)}</span></MobileField>
+          <MobileField className="statusField" label="状态">
+            <span className="statusControl">
+              <span className={`pill ${account.status || "healthy"}`} title={account.last_error || ""}>{crawlerStatusLabel(account.status)}</span>
+            </span>
+          </MobileField>
           <div className="rowActions">
             <button type="button" onClick={() => testAccount(account).catch((error) => setMessage(error.message))}>测试</button>
             <button type="button" onClick={() => setConfig({ ...config, expireddomains_accounts: accounts.filter((_, itemIndex) => itemIndex !== index) })}>删除</button>
@@ -875,7 +879,11 @@ function ProxiesEditor({
           <MobileField label="启用"><input type="checkbox" checked={proxy.enabled} onChange={(event) => updateProxy(index, { enabled: event.target.checked })} /></MobileField>
           <MobileField label="名称"><input value={proxy.name} onChange={(event) => updateProxy(index, { name: event.target.value })} placeholder="proxy-us-1" /></MobileField>
           <MobileField label="代理 URL"><input type="password" value={proxy.url ?? ""} onChange={(event) => updateProxy(index, { url: event.target.value })} placeholder="http://user:pass@host:port" /></MobileField>
-          <MobileField label="状态"><span className={`pill ${proxy.status || "healthy"}`} title={proxy.last_error || ""}>{crawlerStatusLabel(proxy.status)}</span></MobileField>
+          <MobileField className="statusField" label="状态">
+            <span className="statusControl">
+              <span className={`pill ${proxy.status || "healthy"}`} title={proxy.last_error || ""}>{crawlerStatusLabel(proxy.status)}</span>
+            </span>
+          </MobileField>
           <div className="rowActions">
             <button type="button" onClick={() => testProxy(proxy).catch((error) => setMessage(error.message))}>测试</button>
             <button type="button" onClick={() => setConfig({ ...config, expireddomains_proxies: proxies.filter((_, itemIndex) => itemIndex !== index) })}>删除</button>
@@ -932,7 +940,18 @@ function TldSchedulesEditor({
             </select>
           </MobileField>
           <MobileField label="最大长度"><input type="number" min="1" value={String(schedule.filter_max_length ?? 5)} onChange={(event) => updateSchedule(index, { filter_max_length: Number(event.target.value) })} /></MobileField>
-          <MobileField label="允许数字"><input type="checkbox" checked={Boolean(schedule.filter_allow_digits)} onChange={(event) => updateSchedule(index, { filter_allow_digits: event.target.checked })} /></MobileField>
+          <MobileField className="toggleField" label="允许数字">
+            <span className={`switchControl ${schedule.filter_allow_digits ? "checked" : ""}`}>
+              <input
+                aria-label={`${schedule.tld} 允许数字`}
+                type="checkbox"
+                checked={Boolean(schedule.filter_allow_digits)}
+                onChange={(event) => updateSchedule(index, { filter_allow_digits: event.target.checked })}
+              />
+              <span className="switchTrack" aria-hidden="true"><span className="switchThumb" /></span>
+              <span className="switchText">{schedule.filter_allow_digits ? "允许" : "不允许"}</span>
+            </span>
+          </MobileField>
           <MobileField label="最大页数"><input type="number" min="1" value={String(schedule.max_pages ?? 20)} onChange={(event) => updateSchedule(index, { max_pages: Number(event.target.value) })} /></MobileField>
           <MobileField label="间隔秒"><input type="number" min="0" value={String(schedule.request_delay_seconds ?? 12)} onChange={(event) => updateSchedule(index, { request_delay_seconds: Number(event.target.value) })} /></MobileField>
           <div className="rowActions">

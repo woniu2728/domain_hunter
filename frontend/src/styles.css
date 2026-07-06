@@ -542,17 +542,17 @@ th {
 
 .accountHeader,
 .accountRow {
-  grid-template-columns: 56px minmax(130px, 1fr) minmax(130px, 1fr) minmax(130px, 170px) 86px 122px;
+  grid-template-columns: 56px minmax(130px, 1fr) minmax(130px, 1fr) minmax(130px, 170px) 92px 122px;
 }
 
 .proxyHeader,
 .proxyRow {
-  grid-template-columns: 56px minmax(130px, 170px) minmax(220px, 1fr) 86px 122px;
+  grid-template-columns: 56px minmax(130px, 170px) minmax(220px, 1fr) 92px 122px;
 }
 
 .scheduleHeader,
 .scheduleRow {
-  grid-template-columns: 48px minmax(72px, 88px) minmax(104px, 116px) minmax(132px, 1fr) minmax(82px, 92px) minmax(72px, 84px) minmax(82px, 92px) minmax(82px, 92px) 118px;
+  grid-template-columns: 48px minmax(72px, 88px) minmax(104px, 116px) minmax(132px, 1fr) minmax(82px, 92px) 108px minmax(82px, 92px) minmax(82px, 92px) 118px;
 }
 
 .accountRow input,
@@ -573,6 +573,68 @@ th {
 .scheduleRow input[type="checkbox"] {
   width: 20px;
   height: 20px;
+}
+
+.statusControl {
+  align-items: center;
+  display: inline-flex;
+  min-width: 0;
+}
+
+.statusControl .pill {
+  min-width: 72px;
+}
+
+.switchControl {
+  align-items: center;
+  display: inline-flex;
+  gap: 7px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.switchControl input {
+  border: 0;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  padding: 0;
+  pointer-events: none;
+  position: absolute;
+  width: 1px;
+}
+
+.switchTrack {
+  background: #cbd4dd;
+  border-radius: 999px;
+  display: inline-flex;
+  height: 20px;
+  padding: 2px;
+  transition: background 0.15s ease;
+  width: 36px;
+}
+
+.switchThumb {
+  background: #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(32, 36, 42, 0.25);
+  height: 16px;
+  transition: transform 0.15s ease;
+  width: 16px;
+}
+
+.switchControl.checked .switchTrack {
+  background: #1f7a4c;
+}
+
+.switchControl.checked .switchThumb {
+  transform: translateX(16px);
+}
+
+.switchText {
+  color: #56616b;
+  font-size: 13px;
+  min-width: 42px;
 }
 
 .rowActions button,
@@ -706,6 +768,11 @@ th {
 
   .mobileField .pill {
     width: fit-content;
+  }
+
+  .statusControl,
+  .switchControl {
+    min-height: 38px;
   }
 
   .runtimeInput {

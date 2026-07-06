@@ -3,8 +3,8 @@ from __future__ import annotations
 import unittest
 from unittest.mock import MagicMock, patch
 
-from domain_hunter.types import AppConfig
-from notifier.notify import notify_job_failure
+from domain_hunter.types import AppConfig, HistoryResult, ScoreResult
+from notifier.notify import notify_job_failure, notify_results
 
 
 class NotifyTests(unittest.TestCase):
@@ -35,6 +35,40 @@ class NotifyTests(unittest.TestCase):
             self.run_async(notify_job_failure(AppConfig(), job_id=7, source="schedule", error="boom", attempt=1, max_attempts=1))
 
         smtp_cls.assert_not_called()
+
+    def test_notify_results_sends_top_100_without_history(self) -> None:
+        config = AppConfig(
+            smtp_host="smtp.example.com",
+            email_from="from@example.com",
+            email_to="to@example.com",
+        )
+        scores = [
+            ScoreResult(
+                domain=f"domain{index:03d}.com",
+                brand_score=100,
+                dictionary_score=100,
+                trend_score=100,
+                total_score=200 - index,
+                reasons=(f"原因 {index}",),
+            )
+            for index in range(1, 106)
+        ]
+        histories = [HistoryResult(domain="domain001.com", archive=True, spam=False, notes="历史备注")]
+        smtp = MagicMock()
+
+        with patch("notifier.notify.smtplib.SMTP") as smtp_cls:
+            smtp_cls.return_value.__enter__.return_value = smtp
+            self.run_async(notify_results(scores, histories, config))
+
+        message = smtp.send_message.call_args.args[0]
+        plain_body = message.get_body(("plain",)).get_content()
+        html_body = message.get_body(("html",)).get_content()
+        payload = f"{plain_body}\n{html_body}"
+        self.assertIn("domain100.com", payload)
+        self.assertNotIn("domain101.com", payload)
+        self.assertNotIn("History", payload)
+        self.assertNotIn("历史备注", payload)
+        self.assertNotIn("未检查", payload)
 
     def run_async(self, awaitable) -> None:
         import asyncio
