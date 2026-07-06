@@ -54,6 +54,8 @@ class PipelineService:
             counts["total_filtered"] = len(filtered)
 
             candidate_limit = self.config.top_candidates if top is None else top
+            if job_id is not None:
+                await self.db.update_job_progress(job_id, "score", f"开始评分 {len(filtered)} 个候选域名", 0, len(filtered))
             scored = await score_domains_for_config(filtered, self.config)
             limited_scores = scored[:candidate_limit]
             counts["total_scored"] = len(limited_scores)
@@ -61,9 +63,13 @@ class PipelineService:
                 1 for score in limited_scores if source_status_by_domain.get(score.domain, "available") == "available"
             )
 
+            if job_id is not None:
+                await self.db.update_job_progress(job_id, "save", f"评分完成，保存 Top {len(limited_scores)} 个结果", len(limited_scores), len(filtered))
             await self.db.clear_candidates(tlds=[tld.strip().lower().lstrip(".")] if tld else None)
             await self._save_scores(limited_scores, source_status_by_domain)
 
+            if job_id is not None:
+                await self.db.update_job_progress(job_id, "notify", "结果已保存，发送通知", len(limited_scores), len(filtered))
             await notify_results(limited_scores, [], self.config)
 
             if job_id is not None:

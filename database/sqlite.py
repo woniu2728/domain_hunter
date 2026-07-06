@@ -58,6 +58,10 @@ CREATE TABLE IF NOT EXISTS jobs (
     started_at TEXT,
     finished_at TEXT,
     error TEXT,
+    stage TEXT NOT NULL DEFAULT 'queued',
+    progress_message TEXT NOT NULL DEFAULT '',
+    current_step INTEGER NOT NULL DEFAULT 0,
+    total_steps INTEGER NOT NULL DEFAULT 0,
     total_deleted INTEGER NOT NULL DEFAULT 0,
     total_filtered INTEGER NOT NULL DEFAULT 0,
     total_scored INTEGER NOT NULL DEFAULT 0,
@@ -117,6 +121,16 @@ class Database:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         async with aiosqlite.connect(self.path) as db:
             await db.executescript(SCHEMA)
+            await _ensure_columns(
+                db,
+                "jobs",
+                {
+                    "stage": "TEXT NOT NULL DEFAULT 'queued'",
+                    "progress_message": "TEXT NOT NULL DEFAULT ''",
+                    "current_step": "INTEGER NOT NULL DEFAULT 0",
+                    "total_steps": "INTEGER NOT NULL DEFAULT 0",
+                },
+            )
             await db.commit()
 
     async def upsert_domains(self, candidates: Iterable[DomainCandidate]) -> None:
@@ -454,6 +468,28 @@ class Database:
             )
             await db.commit()
 
+    async def update_job_progress(
+        self,
+        job_id: int,
+        stage: str,
+        message: str,
+        current_step: int = 0,
+        total_steps: int = 0,
+    ) -> None:
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                """
+                UPDATE jobs
+                SET stage = ?,
+                    progress_message = ?,
+                    current_step = ?,
+                    total_steps = ?
+                WHERE id = ? AND status = 'running'
+                """,
+                (stage, message, current_step, total_steps, job_id),
+            )
+            await db.commit()
+
     async def crawler_run_stats(self) -> dict[str, int]:
         async with aiosqlite.connect(self.path) as db:
             today_runs = (
@@ -560,10 +596,12 @@ class Database:
                 UPDATE jobs
                 SET status = 'cancelled',
                     finished_at = CURRENT_TIMESTAMP,
+                    stage = 'cancelled',
+                    progress_message = ?,
                     error = ?
                 WHERE status = 'running'
                 """,
-                (reason,),
+                (reason, reason),
             )
             await db.commit()
 
@@ -574,10 +612,12 @@ class Database:
                 UPDATE jobs
                 SET status = 'cancelled',
                     finished_at = CURRENT_TIMESTAMP,
+                    stage = 'cancelled',
+                    progress_message = ?,
                     error = ?
                 WHERE id = ? AND status = 'running'
                 """,
-                (reason, job_id),
+                (reason, reason, job_id),
             )
             await db.commit()
 
@@ -598,13 +638,25 @@ class Database:
                 SET status = ?,
                     finished_at = CURRENT_TIMESTAMP,
                     error = ?,
+                    stage = ?,
+                    progress_message = ?,
                     total_deleted = ?,
                     total_filtered = ?,
                     total_scored = ?,
                     total_available = ?
                 WHERE id = ?
                 """,
-                (status, error, total_deleted, total_filtered, total_scored, total_available, job_id),
+                (
+                    status,
+                    error,
+                    "failed" if status == "failed" else "done",
+                    error or ("任务完成" if status == "success" else status),
+                    total_deleted,
+                    total_filtered,
+                    total_scored,
+                    total_available,
+                    job_id,
+                ),
             )
             await db.commit()
 
@@ -614,6 +666,7 @@ class Database:
             rows = await db.execute_fetchall(
                 """
                 SELECT id, status, source, started_at, finished_at, error,
+                       stage, progress_message, current_step, total_steps,
                        total_deleted, total_filtered, total_scored, total_available
                 FROM jobs
                 ORDER BY id DESC
@@ -629,6 +682,7 @@ class Database:
             rows = await db.execute_fetchall(
                 """
                 SELECT id, status, source, started_at, finished_at, error,
+                       stage, progress_message, current_step, total_steps,
                        total_deleted, total_filtered, total_scored, total_available
                 FROM jobs
                 WHERE id = ?
@@ -706,6 +760,13 @@ def _decode_setting(value: str, value_type: str) -> Any:
     return str(decoded)
 
 
+async def _ensure_columns(db: aiosqlite.Connection, table: str, columns: dict[str, str]) -> None:
+    existing = {row[1] for row in await db.execute_fetchall(f"PRAGMA table_info({table})")}
+    for name, definition in columns.items():
+        if name not in existing:
+            await db.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
+
+
 def _job_from_row(row: aiosqlite.Row) -> JobSummary:
     return JobSummary(
         id=row["id"],
@@ -714,6 +775,10 @@ def _job_from_row(row: aiosqlite.Row) -> JobSummary:
         started_at=row["started_at"],
         finished_at=row["finished_at"],
         error=row["error"],
+        stage=row["stage"],
+        progress_message=row["progress_message"],
+        current_step=row["current_step"],
+        total_steps=row["total_steps"],
         total_deleted=row["total_deleted"],
         total_filtered=row["total_filtered"],
         total_scored=row["total_scored"],

@@ -107,6 +107,10 @@ class JobSummary:
     started_at: str | None
     finished_at: str | None
     error: str | None
+    stage: str
+    progress_message: str
+    current_step: int
+    total_steps: int
     total_deleted: int
     total_filtered: int
     total_scored: int

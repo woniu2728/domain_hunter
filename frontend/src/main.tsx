@@ -34,6 +34,10 @@ type Job = {
   started_at: string | null;
   finished_at: string | null;
   error: string | null;
+  stage: string;
+  progress_message: string;
+  current_step: number;
+  total_steps: number;
   total_deleted: number;
   total_filtered: number;
   total_scored: number;
@@ -151,6 +155,13 @@ function App() {
   useEffect(() => {
     loadAll().catch((error) => setMessage(error.message));
   }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      loadAll().catch((error) => setMessage(error.message));
+    }, hasRunningJob ? 3000 : 15000);
+    return () => window.clearInterval(interval);
+  }, [candidateTld, hasRunningJob, search, status]);
 
   useEffect(() => {
     const onHashChange = () => setView(viewFromHash(window.location.hash));
@@ -304,6 +315,7 @@ function Dashboard({
   onStopJob: () => Promise<void>;
 }) {
   const hasRunningJob = jobs.some((job) => job.status === "running");
+  const runningJob = jobs.find((job) => job.status === "running") ?? null;
 
   return (
     <section className="stack">
@@ -316,6 +328,7 @@ function Dashboard({
       <div className="hint">
         流程会按后缀计划抓取 ExpiredDomains.net 今日源数据，使用大模型评分并发送邮件通知。
       </div>
+      {runningJob && <JobProgressCard job={runningJob} />}
       <div className="sectionTitleRow">
         <h2>最近任务</h2>
         <div className="taskActions">
@@ -340,6 +353,25 @@ function Dashboard({
       </div>
       <JobTable jobs={jobs.slice(0, 5)} />
     </section>
+  );
+}
+
+function JobProgressCard({ job }: { job: Job }) {
+  const hasSteps = job.total_steps > 0;
+  const percent = hasSteps ? Math.min(100, Math.round((job.current_step / job.total_steps) * 100)) : 0;
+  return (
+    <div className="progressCard">
+      <div>
+        <span>当前任务 #{job.id}</span>
+        <strong>{jobProgressText(job)}</strong>
+      </div>
+      {hasSteps && (
+        <div className="progressMeter" aria-label="任务进度">
+          <span style={{ width: `${percent}%` }} />
+        </div>
+      )}
+      <p>{hasSteps ? `${job.current_step}/${job.total_steps}` : stageLabel(job.stage)}</p>
+    </div>
   );
 }
 
@@ -1080,6 +1112,7 @@ function JobTable({ jobs }: { jobs: Job[] }) {
             <th>ID</th>
             <th>状态</th>
             <th>来源</th>
+            <th>进度</th>
             <th>删除数</th>
             <th>过滤后</th>
             <th>已评分</th>
@@ -1093,6 +1126,7 @@ function JobTable({ jobs }: { jobs: Job[] }) {
               <td>{job.id}</td>
               <td><span className={`pill ${job.status}`}>{statusLabel(job.status)}</span></td>
               <td>{sourceLabel(job.source)}</td>
+              <td>{jobProgressText(job)}</td>
               <td>{job.total_deleted}</td>
               <td>{job.total_filtered}</td>
               <td>{job.total_scored}</td>
@@ -1155,6 +1189,30 @@ function crawlerStatusLabel(status?: string) {
 
 function sourceLabel(source: string) {
   return SOURCE_LABELS[source] ?? source;
+}
+
+function stageLabel(stage: string) {
+  const labels: Record<string, string> = {
+    cancelled: "已取消",
+    crawl: "抓取中",
+    done: "已完成",
+    failed: "失败",
+    notify: "发送通知",
+    queued: "排队中",
+    save: "保存结果",
+    score: "评分中"
+  };
+  return labels[stage] ?? stage ?? "-";
+}
+
+function jobProgressText(job: Job) {
+  if (job.status !== "running") {
+    if (job.error) {
+      return errorLabel(job.error);
+    }
+    return statusLabel(job.status);
+  }
+  return job.progress_message || stageLabel(job.stage);
 }
 
 function errorLabel(error: string | null) {

@@ -113,7 +113,9 @@ class JobRunnerService:
         tld = str(payload.get("tld", "")).strip().lower().lstrip(".") or None
         service = PipelineService(db, config)
         try:
-            await CrawlRunnerService(db, config).crawl_enabled_tlds(tld=tld)
+            await db.update_job_progress(job_id, "crawl", "开始抓取 ExpiredDomains.net", 0, 0)
+            await CrawlRunnerService(db, config).crawl_enabled_tlds(tld=tld, job_id=job_id)
+            await db.update_job_progress(job_id, "score", "抓取完成，开始大模型评分", 0, 0)
             await service.run(
                 tld=tld,
                 source=source,

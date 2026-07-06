@@ -212,6 +212,43 @@ h2 {
   padding: 11px 13px;
 }
 
+.progressCard {
+  background: #ffffff;
+  border: 1px solid #dfe5eb;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 14px 18px;
+}
+
+.progressCard div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.progressCard span,
+.progressCard p {
+  color: #66717c;
+  font-size: 13px;
+}
+
+.progressCard strong {
+  font-size: 15px;
+}
+
+.progressMeter {
+  background: #e4e9ee;
+  border-radius: 999px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.progressMeter span {
+  background: #147d74;
+  display: block;
+  height: 100%;
+}
+
 .tableWrap {
   overflow: auto;
   background: #ffffff;

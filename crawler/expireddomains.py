@@ -65,6 +65,7 @@ class ExpiredDomainsCrawler:
         run_id: int | None = None,
         max_length: int | None = None,
         allow_digits: bool = True,
+        on_page=None,
     ) -> CrawlResult:
         clean_tld = tld.strip().lower().lstrip(".")
         url = build_deleted_url(clean_tld, max_length=max_length, allow_digits=allow_digits)
@@ -78,6 +79,8 @@ class ExpiredDomainsCrawler:
             available, seen, next_url = parse_deleted_domains(html, clean_tld)
             domains_seen += seen
             all_available.extend(available)
+            if on_page:
+                await on_page(page_index + 1, max_pages, seen, len(available), domains_seen, len(all_available))
             if not next_url:
                 break
             url = urljoin(url, next_url)

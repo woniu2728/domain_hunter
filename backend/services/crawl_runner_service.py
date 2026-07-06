@@ -14,7 +14,7 @@ class CrawlRunnerService:
         self.db = db
         self.config = config
 
-    async def crawl_enabled_tlds(self, tld: str | None = None) -> list[str]:
+    async def crawl_enabled_tlds(self, tld: str | None = None, job_id: int | None = None) -> list[str]:
         schedules = _enabled_schedules(self.config, tld)
         if not schedules:
             raise ValueError("请先配置并启用至少一个后缀爬取计划。")
@@ -24,12 +24,13 @@ class CrawlRunnerService:
             await self.db.clear_old_source_domains(keep_from)
 
         crawled_tlds: list[str] = []
-        for schedule in schedules:
-            await self.crawl_tld(schedule)
+        for index, schedule in enumerate(schedules, start=1):
+            schedule_with_job = {**schedule, "_job_id": job_id} if job_id else schedule
+            await self.crawl_tld(schedule_with_job, schedule_index=index, schedule_total=len(schedules))
             crawled_tlds.append(str(schedule["tld"]))
         return crawled_tlds
 
-    async def crawl_tld(self, schedule: dict) -> None:
+    async def crawl_tld(self, schedule: dict, schedule_index: int = 1, schedule_total: int = 1) -> None:
         account = select_account(self.config.expireddomains_accounts)
         proxy = select_proxy(account, self.config.expireddomains_proxies, self.config.expireddomains_default_proxy_id)
         tld = str(schedule["tld"])
@@ -45,12 +46,34 @@ class CrawlRunnerService:
             request_delay_seconds=int(schedule.get("request_delay_seconds", 12)),
         )
         try:
+            max_pages = int(schedule.get("max_pages", 20))
+            job_id = int(schedule.get("_job_id", 0) or 0)
+            if job_id:
+                await self.db.update_job_progress(
+                    job_id,
+                    "crawl",
+                    f"准备抓取 {tld} ({schedule_index}/{schedule_total})",
+                    0,
+                    max_pages,
+                )
+
+            async def on_page(page: int, total_pages: int, seen: int, available: int, total_seen: int, total_available: int) -> None:
+                if job_id:
+                    await self.db.update_job_progress(
+                        job_id,
+                        "crawl",
+                        f"抓取 {tld} 第 {page}/{total_pages} 页，本页 {seen} 条，可用 {available} 条，累计 {total_seen} 条",
+                        page,
+                        total_pages,
+                    )
+
             result = await crawler.crawl_tld(
                 tld,
-                max_pages=int(schedule.get("max_pages", 20)),
+                max_pages=max_pages,
                 run_id=run_id,
                 max_length=int(schedule.get("filter_max_length", 0) or 0) or None,
                 allow_digits=bool(schedule.get("filter_allow_digits", True)),
+                on_page=on_page,
             )
             today = date.today().isoformat()
             await self.db.clear_source_domains(today, tlds=[tld])
