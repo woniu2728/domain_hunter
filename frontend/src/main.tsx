@@ -124,9 +124,21 @@ const SOURCE_LABELS: Record<string, string> = {
   "schedule-retry": "定时重试"
 };
 
-const ERROR_LABELS: Record<string, string> = {
-  "Provide deleted_file or both today_zone and yesterday_zone.": "请先配置可用账号并启用至少一个后缀爬取计划。"
+const ERROR_LABELS: Record<string, string> = {};
+
+const CRAWLER_STATUS_LABELS: Record<string, string> = {
+  healthy: "正常",
+  cooldown: "冷却中",
+  login_failed: "登录失败",
+  limited: "访问受限",
+  captcha: "验证码",
+  disabled: "已禁用",
+  failed: "失败"
 };
+
+const TLD_OPTIONS = ["com", "net", "org", "io", "co", "ai", "app", "dev", "xyz", "info", "biz", "me", "us", "cn"];
+
+const TIMEZONE_OPTIONS = ["Asia/Shanghai", "UTC", "America/New_York", "Europe/London"];
 
 function App() {
   const [view, setView] = useState<View>(() => viewFromHash(window.location.hash));
@@ -518,21 +530,9 @@ function ConfigView({
       fields: []
     },
     {
-      title: "数据源账号",
-      description: "配置多个 ExpiredDomains.net 账号；账号不可用时任务会切换到其他健康账号。",
-      accounts: true,
-      fields: []
-    },
-    {
-      title: "代理池",
-      description: "可选。账号可以绑定固定代理，代理用于稳定网络出口，不做高频轮换。",
-      proxies: true,
-      fields: []
-    },
-    {
-      title: "后缀爬取计划",
-      description: "不同后缀可以设置不同的每日爬取时间，只抓取 ExpiredDomains.net 每日更新列表。",
-      tldSchedules: true,
+      title: "数据源",
+      description: "配置 ExpiredDomains.net 账号、可选代理和各后缀的每日爬取计划。",
+      dataSource: true,
       fields: []
     },
     {
@@ -603,12 +603,8 @@ function ConfigView({
             <p>{group.description}</p>
           </div>
           <div className="configGrid">
-            {"accounts" in group && group.accounts ? (
-              <AccountsEditor config={config} onSaveConfig={onSaveConfig} setConfig={setConfig} setMessage={setMessage} />
-            ) : "proxies" in group && group.proxies ? (
-              <ProxiesEditor config={config} onSaveConfig={onSaveConfig} setConfig={setConfig} setMessage={setMessage} />
-            ) : "tldSchedules" in group && group.tldSchedules ? (
-              <TldSchedulesEditor config={config} onSaveConfig={onSaveConfig} setConfig={setConfig} setMessage={setMessage} />
+            {"dataSource" in group && group.dataSource ? (
+              <DataSourceEditor config={config} onSaveConfig={onSaveConfig} setConfig={setConfig} setMessage={setMessage} />
             ) : "runtimePaths" in group && group.runtimePaths ? (
               <RuntimePathsEditor config={config} setConfig={setConfig} />
             ) : "schedule" in group && group.schedule ? (
@@ -646,6 +642,66 @@ function ConfigView({
         {hasRunningJob ? "按当前配置重启任务" : "启动任务"}
       </button>
       {!hasDirectRunSource && <div className="hint">启动任务需要先配置可用账号，并启用至少一个后缀爬取计划；点击启动会弹出提示。</div>}
+    </section>
+  );
+}
+
+function DataSourceEditor({
+  config,
+  onSaveConfig,
+  setConfig,
+  setMessage
+}: {
+  config: AppConfig;
+  onSaveConfig: () => Promise<AppConfig>;
+  setConfig: (value: AppConfig) => void;
+  setMessage: (value: string) => void;
+}) {
+  const accounts = config.expireddomains_accounts ?? [];
+  const proxies = config.expireddomains_proxies ?? [];
+  const schedules = config.expireddomains_tld_schedules ?? [];
+  const enabledAccounts = accounts.filter((account) => account.enabled && account.username && account.password).length;
+  const enabledSchedules = schedules.filter((schedule) => schedule.enabled && schedule.tld).length;
+
+  return (
+    <div className="dataSourceEditor">
+      <div className="sourceSummary">
+        <SummaryItem label="可用账号" value={`${enabledAccounts}/${accounts.length}`} />
+        <SummaryItem label="代理出口" value={String(proxies.filter((proxy) => proxy.enabled).length)} />
+        <SummaryItem label="启用后缀" value={`${enabledSchedules}/${schedules.length}`} />
+      </div>
+      <DataSourcePanel title="账号池" description="至少保留一个可登录账号；账号异常时后端会换用其他启用账号。">
+        <AccountsEditor config={config} onSaveConfig={onSaveConfig} setConfig={setConfig} setMessage={setMessage} />
+      </DataSourcePanel>
+      <DataSourcePanel title="代理池（可选）" description="代理用于固定账号出口，不配置则使用当前服务器直连。">
+        <ProxiesEditor config={config} onSaveConfig={onSaveConfig} setConfig={setConfig} setMessage={setMessage} />
+      </DataSourcePanel>
+      <DataSourcePanel title="后缀爬取计划" description="每个后缀按自己的每日时间抓取 ExpiredDomains.net 当日可注册删除列表。">
+        <TldSchedulesEditor config={config} onSaveConfig={onSaveConfig} setConfig={setConfig} setMessage={setMessage} />
+      </DataSourcePanel>
+    </div>
+  );
+}
+
+function SummaryItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function DataSourcePanel({ children, description, title }: { children: React.ReactNode; description: string; title: string }) {
+  return (
+    <section className="sourcePanel">
+      <div className="sourcePanelHeader">
+        <div>
+          <h3>{title}</h3>
+          <p>{description}</p>
+        </div>
+      </div>
+      {children}
     </section>
   );
 }
@@ -870,10 +926,11 @@ function AccountsEditor({
   }
 
   return (
-    <div className="zoneSources">
+    <div className="sourceRows">
       <div className="accountHeader">
         <span>启用</span><span>账号</span><span>密码</span><span>绑定代理</span><span>状态</span><span>操作</span>
       </div>
+      {accounts.length === 0 && <div className="emptyState">至少添加一个 ExpiredDomains.net 账号后才能启动任务。</div>}
       {accounts.map((account, index) => (
         <div className="accountRow" key={account.id || index}>
           <input type="checkbox" checked={account.enabled} onChange={(event) => updateAccount(index, { enabled: event.target.checked })} />
@@ -883,7 +940,7 @@ function AccountsEditor({
             <option value="">默认/不使用</option>
             {proxies.map((proxy) => <option key={proxy.id} value={proxy.id}>{proxy.name || proxy.id}</option>)}
           </select>
-          <span className={`pill ${account.status || "healthy"}`}>{account.status || "healthy"}</span>
+          <span className={`pill ${account.status || "healthy"}`} title={account.last_error || ""}>{crawlerStatusLabel(account.status)}</span>
           <div className="rowActions">
             <button type="button" onClick={() => testAccount(account).catch((error) => setMessage(error.message))}>测试</button>
             <button type="button" onClick={() => setConfig({ ...config, expireddomains_accounts: accounts.filter((_, itemIndex) => itemIndex !== index) })}>删除</button>
@@ -919,16 +976,17 @@ function ProxiesEditor({
   }
 
   return (
-    <div className="zoneSources">
+    <div className="sourceRows">
       <div className="proxyHeader">
         <span>启用</span><span>名称</span><span>代理 URL</span><span>状态</span><span>操作</span>
       </div>
+      {proxies.length === 0 && <div className="emptyState">代理可选，不配置则使用当前服务器直连。</div>}
       {proxies.map((proxy, index) => (
         <div className="proxyRow" key={proxy.id || index}>
           <input type="checkbox" checked={proxy.enabled} onChange={(event) => updateProxy(index, { enabled: event.target.checked })} />
           <input value={proxy.name} onChange={(event) => updateProxy(index, { name: event.target.value })} placeholder="proxy-us-1" />
           <input type="password" value={proxy.url ?? ""} onChange={(event) => updateProxy(index, { url: event.target.value })} placeholder="http://user:pass@host:port" />
-          <span className={`pill ${proxy.status || "healthy"}`}>{proxy.status || "healthy"}</span>
+          <span className={`pill ${proxy.status || "healthy"}`} title={proxy.last_error || ""}>{crawlerStatusLabel(proxy.status)}</span>
           <div className="rowActions">
             <button type="button" onClick={() => testProxy(proxy).catch((error) => setMessage(error.message))}>测试</button>
             <button type="button" onClick={() => setConfig({ ...config, expireddomains_proxies: proxies.filter((_, itemIndex) => itemIndex !== index) })}>删除</button>
@@ -964,15 +1022,22 @@ function TldSchedulesEditor({
   }
 
   return (
-    <div className="zoneSources">
+    <div className="sourceRows">
       <div className="scheduleHeader">
-        <span>启用</span><span>后缀</span><span>每日时间</span><span>最大页数</span><span>间隔秒</span><span>操作</span>
+        <span>启用</span><span>后缀</span><span>每日时间</span><span>时区</span><span>最大页数</span><span>间隔秒</span><span>操作</span>
       </div>
+      {schedules.length === 0 && <div className="emptyState">至少添加一个后缀计划后才能启动任务。</div>}
       {schedules.map((schedule, index) => (
         <div className="scheduleRow" key={`${schedule.tld}-${index}`}>
           <input type="checkbox" checked={schedule.enabled} onChange={(event) => updateSchedule(index, { enabled: event.target.checked })} />
-          <input value={schedule.tld} onChange={(event) => updateSchedule(index, { tld: event.target.value })} placeholder="com" />
+          <select value={normalizeTld(schedule.tld)} onChange={(event) => updateSchedule(index, { tld: event.target.value })}>
+            {schedule.tld && !TLD_OPTIONS.includes(normalizeTld(schedule.tld)) && <option value={normalizeTld(schedule.tld)}>{normalizeTld(schedule.tld)}</option>}
+            {TLD_OPTIONS.map((tld) => <option key={tld} value={tld}>{tld}</option>)}
+          </select>
           <input type="time" value={timeFromSchedule(schedule)} onChange={(event) => updateSchedule(index, scheduleTimePatch(event.target.value))} />
+          <select value={schedule.timezone || "Asia/Shanghai"} onChange={(event) => updateSchedule(index, { timezone: event.target.value })}>
+            {TIMEZONE_OPTIONS.map((timezone) => <option key={timezone} value={timezone}>{timezone}</option>)}
+          </select>
           <input type="number" min="1" value={String(schedule.max_pages ?? 20)} onChange={(event) => updateSchedule(index, { max_pages: Number(event.target.value) })} />
           <input type="number" min="0" value={String(schedule.request_delay_seconds ?? 12)} onChange={(event) => updateSchedule(index, { request_delay_seconds: Number(event.target.value) })} />
           <div className="rowActions">
@@ -1085,6 +1150,10 @@ function statusLabel(status: string) {
   return STATUS_LABELS[status] ?? status;
 }
 
+function crawlerStatusLabel(status?: string) {
+  return CRAWLER_STATUS_LABELS[status || "healthy"] ?? status ?? "正常";
+}
+
 function sourceLabel(source: string) {
   return SOURCE_LABELS[source] ?? source;
 }
@@ -1101,6 +1170,10 @@ function clampTime(value: number, min: number, max: number) {
     return min;
   }
   return Math.min(max, Math.max(min, value));
+}
+
+function normalizeTld(tld: string) {
+  return tld.trim().toLowerCase().replace(/^\./, "");
 }
 
 function defaultPreviewConfig(): PreviewConfig {

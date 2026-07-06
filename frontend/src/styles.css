@@ -27,8 +27,8 @@ select {
 
 label input,
 label select,
-.zoneRow input,
-.zoneRow select,
+.sourceRows input,
+.sourceRows select,
 .runtimePaths input {
   min-width: 0;
   width: 100%;
@@ -449,14 +449,69 @@ th {
   min-width: 0;
 }
 
-.zoneSources {
+.dataSourceEditor {
   grid-column: 1 / -1;
   display: grid;
+  gap: 14px;
+}
+
+.sourceSummary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(120px, 1fr));
   gap: 10px;
 }
 
-.zoneHeader,
-.zoneRow,
+.sourceSummary div {
+  background: #f7f9fa;
+  border: 1px solid #e4e9ee;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.sourceSummary span {
+  display: block;
+  color: #66717c;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.sourceSummary strong {
+  font-size: 22px;
+}
+
+.sourcePanel {
+  border: 1px solid #e4e9ee;
+  border-radius: 8px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.sourcePanelHeader h3 {
+  font-size: 15px;
+  margin: 0 0 4px;
+}
+
+.sourcePanelHeader p {
+  color: #66717c;
+  font-size: 13px;
+}
+
+.sourceRows {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+}
+
+.emptyState {
+  background: #fafbfc;
+  border: 1px dashed #cbd4dd;
+  border-radius: 8px;
+  color: #66717c;
+  padding: 12px;
+}
+
 .accountHeader,
 .accountRow,
 .proxyHeader,
@@ -466,9 +521,9 @@ th {
   display: grid;
   gap: 10px;
   align-items: center;
+  min-width: 0;
 }
 
-.zoneHeader,
 .accountHeader,
 .proxyHeader,
 .scheduleHeader {
@@ -479,24 +534,25 @@ th {
 
 .accountHeader,
 .accountRow {
-  grid-template-columns: 64px minmax(160px, 1fr) minmax(160px, 1fr) minmax(140px, 180px) 100px 128px;
+  grid-template-columns: 56px minmax(130px, 1fr) minmax(130px, 1fr) minmax(130px, 170px) 86px 122px;
 }
 
 .proxyHeader,
 .proxyRow {
-  grid-template-columns: 64px minmax(140px, 180px) minmax(260px, 1fr) 100px 128px;
+  grid-template-columns: 56px minmax(130px, 170px) minmax(220px, 1fr) 86px 122px;
 }
 
 .scheduleHeader,
 .scheduleRow {
-  grid-template-columns: 64px 120px 150px 120px 120px 128px;
+  grid-template-columns: 56px minmax(90px, 110px) minmax(120px, 130px) minmax(150px, 1fr) minmax(100px, 110px) minmax(100px, 110px) 122px;
 }
 
-.zoneRow input,
 .accountRow input,
 .accountRow select,
 .proxyRow input,
-.scheduleRow input {
+.proxyRow select,
+.scheduleRow input,
+.scheduleRow select {
   height: 38px;
   border: 1px solid #cbd4dd;
   border-radius: 7px;
@@ -504,7 +560,6 @@ th {
   min-width: 0;
 }
 
-.zoneRow input[type="checkbox"],
 .accountRow input[type="checkbox"],
 .proxyRow input[type="checkbox"],
 .scheduleRow input[type="checkbox"] {
@@ -512,7 +567,6 @@ th {
   height: 20px;
 }
 
-.zoneRow button,
 .rowActions button,
 .secondaryButton {
   height: 38px;
@@ -526,6 +580,14 @@ th {
 .rowActions {
   display: flex;
   gap: 8px;
+  min-width: 0;
+}
+
+.rowActions button {
+  flex: 1;
+  min-width: 52px;
+  padding: 0 8px;
+  white-space: nowrap;
 }
 
 .secondaryButton {
@@ -574,18 +636,17 @@ th {
 
   .metrics,
   .configGrid,
-  .previewGrid {
+  .previewGrid,
+  .sourceSummary {
     grid-template-columns: 1fr;
   }
 
-  .zoneHeader,
   .accountHeader,
   .proxyHeader,
   .scheduleHeader {
     display: none;
   }
 
-  .zoneRow,
   .accountRow,
   .proxyRow,
   .scheduleRow {
