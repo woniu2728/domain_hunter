@@ -928,6 +928,8 @@ function TldSchedulesEditor({
   setMessage: (value: string) => void;
 }) {
   const schedules = config.expireddomains_tld_schedules ?? [];
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const editingSchedule = editingIndex === null ? null : schedules[editingIndex] ?? null;
 
   function updateSchedule(index: number, patch: Partial<TldSchedule>) {
     setConfig({ ...config, expireddomains_tld_schedules: schedules.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)) });
@@ -944,7 +946,7 @@ function TldSchedulesEditor({
       {schedules.length === 0 && <div className="emptyState">至少添加一个后缀计划后才能启动任务。</div>}
       {schedules.map((schedule, index) => (
         <div className="scheduleCard" key={`${schedule.tld}-${index}`}>
-          <div className="scheduleMain">
+          <div className="scheduleCompact">
             <MobileField label="启用"><input type="checkbox" checked={schedule.enabled} onChange={(event) => updateSchedule(index, { enabled: event.target.checked })} /></MobileField>
             <MobileField label="后缀">
               <select value={normalizeTld(schedule.tld)} onChange={(event) => updateSchedule(index, { tld: event.target.value })}>
@@ -952,28 +954,45 @@ function TldSchedulesEditor({
                 {TLD_OPTIONS.map((tld) => <option key={tld} value={tld}>{tld}</option>)}
               </select>
             </MobileField>
-            <MobileField label="每日时间"><input type="time" value={timeFromSchedule(schedule)} onChange={(event) => updateSchedule(index, scheduleTimePatch(event.target.value))} /></MobileField>
-            <MobileField label="时区">
-              <select value={schedule.timezone || "Asia/Shanghai"} onChange={(event) => updateSchedule(index, { timezone: event.target.value })}>
-                {TIMEZONE_OPTIONS.map((timezone) => <option key={timezone} value={timezone}>{timezone}</option>)}
-              </select>
-            </MobileField>
-          </div>
-          <div className="scheduleParams">
             <MobileField label="最大长度"><input type="number" min="1" value={String(schedule.filter_max_length ?? 5)} onChange={(event) => updateSchedule(index, { filter_max_length: Number(event.target.value) })} /></MobileField>
             <MobileField as="div" className="toggleField" label="允许数字">
               <ToggleSwitch checked={Boolean(schedule.filter_allow_digits)} label={`${schedule.tld} 允许数字`} onChange={(checked) => updateSchedule(index, { filter_allow_digits: checked })} />
             </MobileField>
-            <MobileField label="最大页数"><input type="number" min="1" value={String(schedule.max_pages ?? 20)} onChange={(event) => updateSchedule(index, { max_pages: Number(event.target.value) })} /></MobileField>
-            <MobileField label="间隔秒"><input type="number" min="0" value={String(schedule.request_delay_seconds ?? 12)} onChange={(event) => updateSchedule(index, { request_delay_seconds: Number(event.target.value) })} /></MobileField>
-          </div>
-          <div className="rowActions scheduleActions">
-            <button type="button" onClick={() => testFetch(schedule).catch((error) => setMessage(error.message))}>测试</button>
-            <button type="button" onClick={() => setConfig({ ...config, expireddomains_tld_schedules: schedules.filter((_, itemIndex) => itemIndex !== index) })}>删除</button>
+            <div className="scheduleCompactActions">
+              <button className="scheduleEditButton" type="button" onClick={() => setEditingIndex(index)}>编辑</button>
+              <button type="button" onClick={() => setConfig({ ...config, expireddomains_tld_schedules: schedules.filter((_, itemIndex) => itemIndex !== index) })}>删除</button>
+            </div>
           </div>
         </div>
       ))}
       <button className="secondaryButton" type="button" onClick={() => setConfig({ ...config, expireddomains_tld_schedules: [...schedules, newSchedule()] })}>添加后缀计划</button>
+      {editingSchedule && editingIndex !== null && (
+        <div className="modalBackdrop" role="presentation" onMouseDown={() => setEditingIndex(null)}>
+          <div aria-modal="true" className="modalPanel" role="dialog" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="modalHeader">
+              <div>
+                <h3>编辑 {normalizeTld(editingSchedule.tld)} 爬取设置</h3>
+                <p>这些参数只影响定时爬取行为，常用过滤项保留在外层。</p>
+              </div>
+              <button className="iconTextButton" type="button" onClick={() => setEditingIndex(null)}>关闭</button>
+            </div>
+            <div className="modalGrid">
+              <MobileField label="每日时间"><input type="time" value={timeFromSchedule(editingSchedule)} onChange={(event) => updateSchedule(editingIndex, scheduleTimePatch(event.target.value))} /></MobileField>
+              <MobileField label="时区">
+                <select value={editingSchedule.timezone || "Asia/Shanghai"} onChange={(event) => updateSchedule(editingIndex, { timezone: event.target.value })}>
+                  {TIMEZONE_OPTIONS.map((timezone) => <option key={timezone} value={timezone}>{timezone}</option>)}
+                </select>
+              </MobileField>
+              <MobileField label="最大页数"><input type="number" min="1" value={String(editingSchedule.max_pages ?? 20)} onChange={(event) => updateSchedule(editingIndex, { max_pages: Number(event.target.value) })} /></MobileField>
+              <MobileField label="间隔秒"><input type="number" min="0" value={String(editingSchedule.request_delay_seconds ?? 12)} onChange={(event) => updateSchedule(editingIndex, { request_delay_seconds: Number(event.target.value) })} /></MobileField>
+            </div>
+            <div className="modalActions">
+              <button type="button" onClick={() => testFetch(editingSchedule).catch((error) => setMessage(error.message))}>测试抓取</button>
+              <button className="primaryButton" type="button" onClick={() => setEditingIndex(null)}>完成</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
