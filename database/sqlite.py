@@ -301,7 +301,7 @@ class Database:
         search: str | None = None,
         provider: str = "expireddomains",
     ) -> list[str]:
-        clauses = ["provider = ?", "source_date = ?", "source_status = 'available'"]
+        clauses = ["provider = ?", "source_date = ?"]
         params: list[Any] = [provider, source_date]
         if tlds:
             placeholders = ", ".join("?" for _ in tlds)
@@ -323,6 +323,46 @@ class Database:
                 tuple(params),
             )
         return [row[0] for row in rows]
+
+    async def list_source_domain_rows(
+        self,
+        source_date: str,
+        limit: int = 5000,
+        tlds: list[str] | None = None,
+        search: str | None = None,
+        provider: str = "expireddomains",
+    ) -> list[SourceDomain]:
+        clauses = ["provider = ?", "source_date = ?", "source_status = 'available'"]
+        params: list[Any] = [provider, source_date]
+        if tlds:
+            placeholders = ", ".join("?" for _ in tlds)
+            clauses.append(f"tld IN ({placeholders})")
+            params.extend(tlds)
+        if search:
+            clauses.append("domain LIKE ?")
+            params.append(f"%{search}%")
+        params.append(limit)
+        async with aiosqlite.connect(self.path) as db:
+            rows = await db.execute_fetchall(
+                f"""
+                SELECT domain, tld, source_status, dropped_date, metrics_json
+                FROM deleted_domain_sources
+                WHERE {' AND '.join(clauses)}
+                ORDER BY domain ASC
+                LIMIT ?
+                """,
+                tuple(params),
+            )
+        return [
+            SourceDomain(
+                domain=row[0],
+                tld=row[1],
+                source_status=row[2],
+                dropped_date=row[3],
+                metrics=json.loads(row[4] or "{}"),
+            )
+            for row in rows
+        ]
 
     async def source_domain_stats(self, source_date: str, provider: str = "expireddomains") -> dict[str, int]:
         async with aiosqlite.connect(self.path) as db:

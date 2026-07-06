@@ -3,9 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-from checker import check_availability, check_history
 from database import Database
-from domain_hunter.types import AppConfig, DomainCandidate, ScoreResult
+from domain_hunter.types import AppConfig, DomainCandidate, ScoreResult, SourceDomain
 from filters import DefaultDomainFilter, filter_domains
 from notifier import notify_results
 from scorer.ai_score import score_domains_for_config
@@ -47,69 +46,64 @@ class PipelineService:
         }
 
         try:
-            deleted = deleted_domains or set(
-                await self.db.list_source_domains(
-                    source_date=date.today().isoformat(),
-                    tlds=[tld] if tld else None,
-                    limit=50000,
-                )
-            )
+            source_rows = await self._source_rows(deleted_domains, tld)
+            source_status_by_domain = {row.domain: row.source_status for row in source_rows}
+            deleted = {row.domain for row in source_rows}
             counts["total_deleted"] = len(deleted)
 
             filtered = filter_domains(deleted, filters=(self._domain_filter(),))
             counts["total_filtered"] = len(filtered)
 
-            threshold = self.config.min_score if min_score is None else min_score
             candidate_limit = self.config.top_candidates if top is None else top
             scored = await score_domains_for_config(filtered, self.config)
-            scores = [score for score in scored if score.total_score >= threshold]
-            limited_scores = scores[:candidate_limit]
+            limited_scores = scored[:candidate_limit]
             counts["total_scored"] = len(limited_scores)
-
-            await self._save_scores(limited_scores)
-
-            availability = await check_availability(
-                [score.domain for score in limited_scores],
-                provider=self.config.availability_provider,
-                concurrency=self.config.availability_concurrency,
-                timeout_seconds=self.config.availability_timeout_seconds,
+            counts["total_available"] = sum(
+                1 for score in limited_scores if source_status_by_domain.get(score.domain, "available") == "available"
             )
-            available_domains = [item.domain for item in availability if item.available]
-            counts["total_available"] = len(available_domains)
-            for item in availability:
-                await self.db.update_status(item.domain, "available" if item.available else "registered")
 
-            histories = await check_history(
-                available_domains,
-                enabled=self.config.wayback_enabled,
-                timeout_seconds=self.config.wayback_timeout_seconds,
-            )
-            await self.db.upsert_history(histories)
-            clean_domains = {history.domain for history in histories if not history.spam}
-            final_scores = [score for score in limited_scores if score.domain in clean_domains]
+            await self._save_scores(limited_scores, source_status_by_domain)
 
-            await notify_results(final_scores, histories, self.config)
+            await notify_results(limited_scores, [], self.config)
 
             if job_id is not None:
                 await self.db.finish_job(job_id, "success", error=None, **counts)
-            return PipelineResult(job_id=job_id, notified=len(final_scores), **counts)
+            return PipelineResult(job_id=job_id, notified=len(limited_scores), **counts)
         except Exception as exc:
             if job_id is not None:
                 await self.db.finish_job(job_id, "failed", error=str(exc), **counts)
             raise
 
-    async def _save_scores(self, scores: list[ScoreResult]) -> None:
+    async def _save_scores(self, scores: list[ScoreResult], source_status_by_domain: dict[str, str]) -> None:
         candidates = [
             DomainCandidate(
                 domain=score.domain,
                 tld=_domain_tld(score.domain),
                 length=len(_domain_label(score.domain)),
                 deleted_date=date.today(),
+                status=source_status_by_domain.get(score.domain, "available"),
             )
             for score in scores
         ]
         await self.db.upsert_domains(candidates)
         await self.db.upsert_scores(scores)
+
+    async def _source_rows(self, deleted_domains: set[str] | None, tld: str | None) -> list[SourceDomain]:
+        if deleted_domains is not None:
+            return [
+                SourceDomain(
+                    domain=domain,
+                    tld=_domain_tld(domain),
+                    source_status="available",
+                    dropped_date=date.today().isoformat(),
+                )
+                for domain in deleted_domains
+            ]
+        return await self.db.list_source_domain_rows(
+            source_date=date.today().isoformat(),
+            tlds=[tld] if tld else None,
+            limit=50000,
+        )
 
     def _domain_filter(self) -> DefaultDomainFilter:
         return DefaultDomainFilter(

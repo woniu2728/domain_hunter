@@ -7,20 +7,19 @@ import re
 import httpx
 
 from domain_hunter.types import AppConfig, ScoreResult
-from scorer.brand_score import score_domains
 
 
-BATCH_SIZE = 50
+DEFAULT_SCORE_REASON = "大模型不可用，使用默认评分。"
 
 
 async def score_domains_for_config(domains: Iterable[str], config: AppConfig) -> list[ScoreResult]:
     domain_list = list(domains)
     if not _llm_enabled(config):
-        return score_domains(domain_list)
+        return _default_scores(domain_list)
     try:
         return await _score_domains_with_llm(domain_list, config)
     except Exception:
-        return score_domains(domain_list)
+        return _default_scores(domain_list)
 
 
 async def test_llm_scoring(config: AppConfig, domain: str = "flowmint.com") -> ScoreResult:
@@ -30,10 +29,8 @@ async def test_llm_scoring(config: AppConfig, domain: str = "flowmint.com") -> S
 
 
 async def _score_domains_with_llm(domains: list[str], config: AppConfig) -> list[ScoreResult]:
-    scores: list[ScoreResult] = []
     async with httpx.AsyncClient(timeout=60) as client:
-        for batch in _chunks(domains, BATCH_SIZE):
-            scores.extend(await _score_batch(client, batch, config))
+        scores = await _score_batch(client, domains, config)
     return sorted(scores, key=lambda item: item.total_score, reverse=True)
 
 
@@ -48,18 +45,18 @@ async def _score_batch(client: httpx.AsyncClient, domains: list[str], config: Ap
                 {
                     "role": "system",
                     "content": (
-                        "You score deleted domains for brandability. "
-                        "Return only valid JSON, no markdown. "
-                        "Score each domain from 0 to 100. Consider memorability, length, pronunciation, "
-                        "commercial intent, clarity, and spam risk."
+                        "你是域名投资筛选助手。只返回合法 JSON，不要 Markdown。"
+                        "请为每个已删除域名按 0 到 100 评分，考虑品牌感、长度、发音、商业价值、清晰度和垃圾风险。"
+                        "reason 必须使用简体中文，简短说明评分原因。"
                     ),
                 },
                 {
                     "role": "user",
                     "content": (
-                        "Return JSON in this exact shape: "
-                        '{"scores":[{"domain":"example.com","score":80,"reason":"brief reason"}]}. '
-                        f"Domains: {', '.join(domains)}"
+                        "按这个结构返回 JSON："
+                        '{"scores":[{"domain":"example.com","score":80,"reason":"简短中文原因"}]}。'
+                        "必须为下面所有域名输出评分，不要遗漏："
+                        f"{', '.join(domains)}"
                     ),
                 },
             ],
@@ -87,7 +84,7 @@ def _parse_scores(content: str, expected_domains: list[str]) -> list[ScoreResult
             continue
         score = _clamp_score(row.get("score"))
         reason = str(row.get("reason", "")).strip()
-        reasons = ("ai-score", reason) if reason else ("ai-score",)
+        reasons = (reason,) if reason else ("大模型评分",)
         by_domain[domain] = ScoreResult(
             domain=domain,
             brand_score=score,
@@ -101,6 +98,20 @@ def _parse_scores(content: str, expected_domains: list[str]) -> list[ScoreResult
         missing = sorted(expected - set(by_domain))
         raise ValueError(f"LLM score response missing domains: {', '.join(missing)}")
     return [by_domain[domain.lower()] for domain in expected_domains]
+
+
+def _default_scores(domains: list[str]) -> list[ScoreResult]:
+    return [
+        ScoreResult(
+            domain=domain,
+            brand_score=100,
+            dictionary_score=0,
+            trend_score=0,
+            total_score=100,
+            reasons=(DEFAULT_SCORE_REASON,),
+        )
+        for domain in domains
+    ]
 
 
 def _llm_enabled(config: AppConfig) -> bool:
@@ -123,8 +134,3 @@ def _strip_code_fence(content: str) -> str:
 def _clamp_score(value: object) -> int:
     score = int(float(value))
     return max(0, min(100, score))
-
-
-def _chunks(items: list[str], size: int) -> Iterable[list[str]]:
-    for index in range(0, len(items), size):
-        yield items[index : index + size]

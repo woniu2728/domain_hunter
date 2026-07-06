@@ -103,7 +103,7 @@ def _plain_text(scores: list[ScoreResult], history_by_domain: dict[str, HistoryR
     lines = ["Domain Hunter candidates:"]
     for score in scores[:50]:
         history = history_by_domain.get(score.domain)
-        history_note = history.notes if history else "not checked"
+        history_note = history.notes if history else "未检查"
         lines.append(f"{score.domain} score={score.total_score} history={history_note}")
     return "\n".join(lines)
 
@@ -117,7 +117,7 @@ def _html_report(scores: list[ScoreResult], history_by_domain: dict[str, History
             f"<td>{_escape(score.domain)}</td>"
             f"<td>{score.total_score}</td>"
             f"<td>{_escape(', '.join(score.reasons))}</td>"
-            f"<td>{_escape(history.notes if history else 'not checked')}</td>"
+            f"<td>{_escape(history.notes if history else '未检查')}</td>"
             "</tr>"
         )
     body = "\n".join(rows) or "<tr><td colspan='4'>No clean available candidates found.</td></tr>"
@@ -155,6 +155,6 @@ def _print_console(scores: list[ScoreResult], history_by_domain: dict[str, Histo
 
     for score in scores[:50]:
         history = history_by_domain.get(score.domain)
-        history_note = history.notes if history else "not checked"
+        history_note = history.notes if history else "未检查"
         table.add_row(score.domain, str(score.total_score), ", ".join(score.reasons), history_note)
     console.print(table)
