@@ -21,12 +21,14 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
 label input,
 label select,
+label textarea,
 .sourceRows input,
 .sourceRows select,
 .runtimePaths input {
@@ -381,11 +383,19 @@ th {
 }
 
 .configGrid input,
-.configGrid select {
+.configGrid select,
+.configGrid textarea {
   height: 38px;
   border: 1px solid #cbd4dd;
   border-radius: 7px;
   padding: 0 10px;
+}
+
+.configGrid textarea {
+  grid-column: 1 / -1;
+  min-height: 112px;
+  padding: 10px;
+  resize: vertical;
 }
 
 .configGrid input[type="checkbox"] {

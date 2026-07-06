@@ -10,6 +10,11 @@ from domain_hunter.types import AppConfig, ScoreResult
 
 
 DEFAULT_SCORE_REASON = "大模型不可用，使用默认评分。"
+DEFAULT_LLM_PROMPT = (
+    "你是域名投资筛选助手。只返回合法 JSON，不要 Markdown。"
+    "请为每个已删除域名按 0 到 100 评分，考虑品牌感、长度、发音、商业价值、清晰度和垃圾风险。"
+    "reason 必须使用简体中文，简短说明评分原因。"
+)
 
 
 async def score_domains_for_config(domains: Iterable[str], config: AppConfig) -> list[ScoreResult]:
@@ -44,11 +49,7 @@ async def _score_batch(client: httpx.AsyncClient, domains: list[str], config: Ap
             "messages": [
                 {
                     "role": "system",
-                    "content": (
-                        "你是域名投资筛选助手。只返回合法 JSON，不要 Markdown。"
-                        "请为每个已删除域名按 0 到 100 评分，考虑品牌感、长度、发音、商业价值、清晰度和垃圾风险。"
-                        "reason 必须使用简体中文，简短说明评分原因。"
-                    ),
+                    "content": _llm_prompt(config),
                 },
                 {
                     "role": "user",
@@ -116,6 +117,10 @@ def _default_scores(domains: list[str]) -> list[ScoreResult]:
 
 def _llm_enabled(config: AppConfig) -> bool:
     return bool(config.llm_base_url.strip() and config.llm_api_key.strip() and config.llm_model_id.strip())
+
+
+def _llm_prompt(config: AppConfig) -> str:
+    return config.llm_prompt.strip() or DEFAULT_LLM_PROMPT
 
 
 def _chat_completions_url(base_url: str) -> str:

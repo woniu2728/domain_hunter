@@ -115,7 +115,7 @@ const CRAWLER_STATUS_LABELS: Record<string, string> = {
   failed: "失败"
 };
 
-const TLD_OPTIONS = ["com", "net", "org", "io", "co", "ai", "app", "dev", "xyz", "info", "biz", "me", "us", "cn"];
+const TLD_OPTIONS = ["com", "ai", "io", "me"];
 
 const TIMEZONE_OPTIONS = ["Asia/Shanghai", "UTC", "America/New_York", "Europe/London"];
 
@@ -315,7 +315,7 @@ function Dashboard({
         <Metric label="今日源域名" value={stats.deleted_domains ?? 0} />
       </div>
       <div className="hint">
-        流程会抓取 ExpiredDomains.net 今日源数据，依次执行规则过滤、品牌评分、可注册二次查询、Wayback 历史检查和邮件通知。
+        流程会按后缀计划抓取 ExpiredDomains.net 今日源数据，使用大模型评分并发送邮件通知。
       </div>
       <div className="sectionTitleRow">
         <h2>最近任务</h2>
@@ -429,12 +429,13 @@ function ConfigView({
     },
     {
       title: "大模型评分",
-      description: "配置后优先使用 OpenAI 兼容接口评分；不可用时自动回退到本地评分规则。",
+      description: "配置 OpenAI 兼容接口和评分 Prompt；不可用时默认评分 100。",
       llmSettings: true,
       fields: [
         ["llm_base_url", "Base URL"],
         ["llm_api_key", "API Key"],
-        ["llm_model_id", "Model ID"]
+        ["llm_model_id", "Model ID"],
+        ["llm_prompt", "评分 Prompt"]
       ]
     },
     {
@@ -593,7 +594,8 @@ function LlmSettingsEditor({
   const fields = [
     ["llm_base_url", "Base URL"],
     ["llm_api_key", "API Key"],
-    ["llm_model_id", "Model ID"]
+    ["llm_model_id", "Model ID"],
+    ["llm_prompt", "评分 Prompt"]
   ];
 
   async function testLlm() {
@@ -755,6 +757,12 @@ function ConfigField({
           type="checkbox"
           checked={Boolean(config[fieldKey])}
           onChange={(event) => setConfig({ ...config, [fieldKey]: event.target.checked })}
+        />
+      ) : fieldKey === "llm_prompt" ? (
+        <textarea
+          value={String(config[fieldKey] ?? "")}
+          onChange={(event) => setConfig({ ...config, [fieldKey]: event.target.value })}
+          placeholder="为空时使用系统默认评分 Prompt"
         />
       ) : (
         <input

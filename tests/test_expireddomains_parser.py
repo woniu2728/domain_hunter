@@ -32,14 +32,18 @@ class ExpiredDomainsParserTests(unittest.TestCase):
     def test_build_deleted_url(self) -> None:
         self.assertEqual(
             build_deleted_url("com"),
-            "https://member.expireddomains.net/domains/expiredcom/?o=changes&r=d#listing",
+            "https://member.expireddomains.net/domains/combinedexpired/?o=changes&r=d&ftlds[]=2#listing",
         )
 
     def test_build_deleted_url_with_crawl_filters(self) -> None:
         self.assertEqual(
             build_deleted_url("com", max_length=5, allow_digits=False),
-            "https://member.expireddomains.net/domains/expiredcom/?o=changes&r=d&fmaxhost=5&fnumhost=1#listing",
+            "https://member.expireddomains.net/domains/combinedexpired/?o=changes&r=d&ftlds[]=2&fmaxhost=5&fnumhost=1#listing",
         )
+
+    def test_build_deleted_url_rejects_unsupported_tld(self) -> None:
+        with self.assertRaises(ValueError):
+            build_deleted_url("net")
 
     def test_parse_member_listing_without_status_column(self) -> None:
         html = """

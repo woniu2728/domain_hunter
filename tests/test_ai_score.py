@@ -66,6 +66,26 @@ class AiScoreTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(scores), 75)
         self.assertEqual(post.await_count, 1)
 
+    async def test_uses_configured_prompt(self) -> None:
+        config = AppConfig(
+            llm_base_url="https://llm.example/v1",
+            llm_api_key="key",
+            llm_model_id="model",
+            llm_prompt="自定义中文评分规则",
+        )
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            "choices": [{"message": {"content": '{"scores":[{"domain":"flowmint.com","score":90,"reason":"中文原因"}]}'}}]
+        }
+        post = AsyncMock(return_value=response)
+
+        with patch("httpx.AsyncClient.post", post):
+            await score_domains_for_config(["flowmint.com"], config)
+
+        payload = post.await_args.kwargs["json"]
+        self.assertEqual(payload["messages"][0]["content"], "自定义中文评分规则")
+
 
 if __name__ == "__main__":
     unittest.main()

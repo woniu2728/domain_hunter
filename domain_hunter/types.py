@@ -68,6 +68,7 @@ class AppConfig:
     llm_base_url: str = ""
     llm_api_key: str = ""
     llm_model_id: str = ""
+    llm_prompt: str = ""
     schedule_enabled: bool = False
     schedule_hour: int = 2
     schedule_minute: int = 0

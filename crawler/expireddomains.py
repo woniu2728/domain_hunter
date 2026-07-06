@@ -13,6 +13,12 @@ from crawler.types import CrawlResult, CrawlerAccount, CrawlerProxy
 
 BASE_URL = "https://www.expireddomains.net"
 MEMBER_BASE_URL = "https://member.expireddomains.net"
+SUPPORTED_TLD_IDS = {
+    "com": 2,
+    "ai": 26,
+    "io": 125,
+    "me": 268,
+}
 
 
 class CrawlBlockedError(RuntimeError):
@@ -142,15 +148,15 @@ class ExpiredDomainsCrawler:
 
 def build_deleted_url(tld: str, max_length: int | None = None, allow_digits: bool = True) -> str:
     clean_tld = tld.strip().lower().lstrip(".")
-    params: dict[str, str | int] = {"o": "changes", "r": "d"}
+    if clean_tld not in SUPPORTED_TLD_IDS:
+        raise ValueError("当前仅支持 com、ai、io、me 后缀。")
+    params: list[tuple[str, str | int]] = [("o", "changes"), ("r", "d"), ("ftlds[]", SUPPORTED_TLD_IDS[clean_tld])]
     if max_length is not None and max_length > 0:
-        params["fmaxhost"] = int(max_length)
+        params.append(("fmaxhost", int(max_length)))
     if not allow_digits:
-        params["fnumhost"] = 1
-    query = urlencode(params)
-    if clean_tld:
-        return f"{MEMBER_BASE_URL}/domains/expired{clean_tld}/?{query}#listing"
-    return f"{MEMBER_BASE_URL}/domains/expired/?{query}#listing"
+        params.append(("fnumhost", 1))
+    query = urlencode(params, safe="[]")
+    return f"{MEMBER_BASE_URL}/domains/combinedexpired/?{query}#listing"
 
 
 def _is_login_url(url: str) -> bool:

@@ -9,6 +9,7 @@ from domain_hunter.types import AppConfig
 
 
 SECRET_KEYS = {"smtp_password", "llm_api_key"}
+SUPPORTED_CRAWL_TLDS = {"com", "ai", "io", "me"}
 
 
 class ConfigService:
@@ -162,7 +163,7 @@ def _normalize_tld_schedules(value: Any) -> list[dict[str, Any]]:
         if not isinstance(item, dict):
             continue
         tld = str(item.get("tld", "")).strip().lower().lstrip(".")
-        if not tld:
+        if not tld or tld not in SUPPORTED_CRAWL_TLDS:
             continue
         schedules.append(
             {
