@@ -605,6 +605,7 @@ class Database:
         limit: int = 100,
         status: str | None = None,
         search: str | None = None,
+        tld: str | None = None,
     ) -> list[dict[str, Any]]:
         clauses: list[str] = []
         params: list[Any] = []
@@ -614,6 +615,9 @@ class Database:
         if search:
             clauses.append("d.domain LIKE ?")
             params.append(f"%{search}%")
+        if tld:
+            clauses.append("d.tld = ?")
+            params.append(tld.strip().lower().lstrip("."))
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         params.append(limit)
 

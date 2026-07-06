@@ -301,48 +301,6 @@ th {
   padding: 0 10px;
 }
 
-.candidatePreview {
-  background: #ffffff;
-  border: 1px solid #dfe5eb;
-  border-radius: 8px;
-  padding: 16px;
-}
-
-.previewGrid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(150px, 1fr));
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-.previewGrid label {
-  background: #fafbfc;
-  border: 1px solid #e4e9ee;
-  border-radius: 8px;
-  padding: 10px;
-  display: grid;
-  gap: 7px;
-  min-width: 0;
-}
-
-.previewGrid label span {
-  color: #56616b;
-  font-size: 13px;
-}
-
-.previewGrid input,
-.previewGrid select {
-  height: 36px;
-  border: 1px solid #cbd4dd;
-  border-radius: 7px;
-  padding: 0 10px;
-}
-
-.previewGrid input[type="checkbox"] {
-  width: 20px;
-  height: 20px;
-}
-
 .configSections {
   display: grid;
   gap: 16px;
@@ -584,7 +542,7 @@ th {
 
 .scheduleHeader,
 .scheduleRow {
-  grid-template-columns: 56px minmax(90px, 110px) minmax(120px, 130px) minmax(150px, 1fr) minmax(100px, 110px) minmax(100px, 110px) 122px;
+  grid-template-columns: 48px minmax(72px, 88px) minmax(104px, 116px) minmax(132px, 1fr) minmax(82px, 92px) minmax(72px, 84px) minmax(82px, 92px) minmax(82px, 92px) 118px;
 }
 
 .accountRow input,
@@ -703,7 +661,6 @@ th {
 
   .metrics,
   .configGrid,
-  .previewGrid,
   .sourceSummary {
     grid-template-columns: 1fr;
   }

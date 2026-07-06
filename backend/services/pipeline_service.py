@@ -5,7 +5,6 @@ from datetime import date
 
 from database import Database
 from domain_hunter.types import AppConfig, DomainCandidate, ScoreResult, SourceDomain
-from filters import DefaultDomainFilter, filter_domains
 from notifier import notify_results
 from scorer.ai_score import score_domains_for_config
 
@@ -51,7 +50,7 @@ class PipelineService:
             deleted = {row.domain for row in source_rows}
             counts["total_deleted"] = len(deleted)
 
-            filtered = filter_domains(deleted, filters=(self._domain_filter(),))
+            filtered = sorted(deleted)
             counts["total_filtered"] = len(filtered)
 
             candidate_limit = self.config.top_candidates if top is None else top
@@ -104,26 +103,6 @@ class PipelineService:
             tlds=[tld] if tld else None,
             limit=50000,
         )
-
-    def _domain_filter(self) -> DefaultDomainFilter:
-        return DefaultDomainFilter(
-            min_length=self.config.filter_min_length,
-            max_length=self.config.filter_max_length,
-            allowed_tlds=self._allowed_tlds(),
-            letters_only=self.config.filter_letters_only,
-            require_vowel=self.config.filter_require_vowel,
-            no_digits=self.config.filter_no_digits,
-            no_hyphen=self.config.filter_no_hyphen,
-            max_consecutive_consonants=self.config.filter_max_consecutive_consonants,
-        )
-
-    def _allowed_tlds(self) -> tuple[str, ...]:
-        enabled_tlds = tuple(
-            str(schedule.get("tld", "")).strip().lower().lstrip(".")
-            for schedule in self.config.expireddomains_tld_schedules
-            if schedule.get("enabled") and schedule.get("tld")
-        )
-        return tuple(tld for tld in enabled_tlds if tld)
 
 
 def _domain_label(domain: str) -> str:

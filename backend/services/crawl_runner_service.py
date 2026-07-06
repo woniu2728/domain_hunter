@@ -45,7 +45,13 @@ class CrawlRunnerService:
             request_delay_seconds=int(schedule.get("request_delay_seconds", 12)),
         )
         try:
-            result = await crawler.crawl_tld(tld, max_pages=int(schedule.get("max_pages", 20)), run_id=run_id)
+            result = await crawler.crawl_tld(
+                tld,
+                max_pages=int(schedule.get("max_pages", 20)),
+                run_id=run_id,
+                max_length=int(schedule.get("filter_max_length", 0) or 0) or None,
+                allow_digits=bool(schedule.get("filter_allow_digits", True)),
+            )
             await self.db.upsert_source_domains(result.available_domains, source_date=date.today().isoformat())
             await self.db.finish_crawler_run(
                 run_id,
@@ -91,7 +97,12 @@ async def test_fetch_first_page(db: Database, tld: str) -> dict:
     account = select_account(config.expireddomains_accounts)
     proxy = select_proxy(account, config.expireddomains_proxies, config.expireddomains_default_proxy_id)
     crawler = ExpiredDomainsCrawler(account, proxy, request_delay_seconds=0)
-    result = await crawler.crawl_tld(str(schedule["tld"]), max_pages=1)
+    result = await crawler.crawl_tld(
+        str(schedule["tld"]),
+        max_pages=1,
+        max_length=int(schedule.get("filter_max_length", 0) or 0) or None,
+        allow_digits=bool(schedule.get("filter_allow_digits", True)),
+    )
     return {
         "tld": result.tld,
         "pages_fetched": result.pages_fetched,

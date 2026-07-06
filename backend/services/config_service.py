@@ -27,6 +27,7 @@ class ConfigService:
         stored = await self.db.get_settings()
         data = asdict(defaults)
         data.update({key: value for key, value in stored.items() if key in data})
+        data["expireddomains_tld_schedules"] = _normalize_tld_schedules(data.get("expireddomains_tld_schedules", []))
         return AppConfig(**data)
 
     async def public_config(self) -> dict[str, Any]:
@@ -172,6 +173,8 @@ def _normalize_tld_schedules(value: Any) -> list[dict[str, Any]]:
                 "timezone": str(item.get("timezone", "Asia/Shanghai") or "Asia/Shanghai"),
                 "max_pages": max(1, int(item.get("max_pages", 20) or 20)),
                 "request_delay_seconds": max(0, _int_value(item.get("request_delay_seconds", 12), 12)),
+                "filter_max_length": max(1, _int_value(item.get("filter_max_length", 5), 5)),
+                "filter_allow_digits": bool(item.get("filter_allow_digits", False)),
             }
         )
     return schedules

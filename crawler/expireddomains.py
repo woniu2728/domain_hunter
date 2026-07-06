@@ -4,7 +4,7 @@ import asyncio
 import re
 from hashlib import sha1
 from pathlib import Path
-from urllib.parse import urljoin
+from urllib.parse import urlencode, urljoin
 
 from config import get_settings
 from crawler.expireddomains_parser import parse_deleted_domains
@@ -44,9 +44,16 @@ class ExpiredDomainsCrawler:
         if _looks_like_login_page(html):
             raise CrawlBlockedError("登录失败，请检查 ExpiredDomains.net 账号密码。")
 
-    async def crawl_tld(self, tld: str, max_pages: int, run_id: int | None = None) -> CrawlResult:
+    async def crawl_tld(
+        self,
+        tld: str,
+        max_pages: int,
+        run_id: int | None = None,
+        max_length: int | None = None,
+        allow_digits: bool = True,
+    ) -> CrawlResult:
         clean_tld = tld.strip().lower().lstrip(".")
-        url = build_deleted_url(clean_tld)
+        url = build_deleted_url(clean_tld, max_length=max_length, allow_digits=allow_digits)
         all_available = []
         domains_seen = 0
         pages_fetched = 0
@@ -133,11 +140,17 @@ class ExpiredDomainsCrawler:
         return sha1(identity.encode("utf-8")).hexdigest()[:16]
 
 
-def build_deleted_url(tld: str) -> str:
+def build_deleted_url(tld: str, max_length: int | None = None, allow_digits: bool = True) -> str:
     clean_tld = tld.strip().lower().lstrip(".")
+    params: dict[str, str | int] = {"o": "changes", "r": "d"}
+    if max_length is not None and max_length > 0:
+        params["fmaxhost"] = int(max_length)
+    if not allow_digits:
+        params["fnumhost"] = 1
+    query = urlencode(params)
     if clean_tld:
-        return f"{MEMBER_BASE_URL}/domains/expired{clean_tld}/?o=changes&r=d#listing"
-    return f"{MEMBER_BASE_URL}/domains/expired/?o=changes&r=d#listing"
+        return f"{MEMBER_BASE_URL}/domains/expired{clean_tld}/?{query}#listing"
+    return f"{MEMBER_BASE_URL}/domains/expired/?{query}#listing"
 
 
 def _is_login_url(url: str) -> bool:

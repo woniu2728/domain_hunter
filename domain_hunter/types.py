@@ -63,18 +63,6 @@ class AppConfig:
     expireddomains_tld_schedules: list[dict[str, Any]] = field(default_factory=list)
     expireddomains_cleanup_enabled: bool = True
     expireddomains_keep_days: int = 1
-    filter_min_length: int = 4
-    filter_max_length: int = 12
-    filter_letters_only: bool = True
-    filter_require_vowel: bool = True
-    filter_no_digits: bool = True
-    filter_no_hyphen: bool = True
-    filter_max_consecutive_consonants: int = 3
-    availability_provider: str = "mock"
-    availability_concurrency: int = 10
-    availability_timeout_seconds: int = 12
-    wayback_enabled: bool = True
-    wayback_timeout_seconds: int = 12
     top_candidates: int = 200
     min_score: int = 40
     llm_base_url: str = ""

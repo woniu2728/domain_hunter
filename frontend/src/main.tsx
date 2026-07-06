@@ -69,33 +69,13 @@ type TldSchedule = {
   timezone: string;
   max_pages: number;
   request_delay_seconds: number;
+  filter_max_length: number;
+  filter_allow_digits: boolean;
 };
 type AppConfig = Config & {
   expireddomains_accounts?: CrawlerAccount[];
   expireddomains_proxies?: CrawlerProxy[];
   expireddomains_tld_schedules?: TldSchedule[];
-};
-
-type PreviewConfig = {
-  tlds: string;
-  search: string;
-  source_limit: number;
-  filter_min_length: number;
-  filter_max_length: number;
-  filter_letters_only: boolean;
-  filter_require_vowel: boolean;
-  filter_no_digits: boolean;
-  filter_no_hyphen: boolean;
-  filter_max_consecutive_consonants: number;
-  top_candidates: number;
-  min_score: number;
-};
-
-type PreviewResult = {
-  total_source: number;
-  total_filtered: number;
-  total_scored: number;
-  items: Candidate[];
 };
 
 const API = "";
@@ -109,7 +89,6 @@ const STATUS_LABELS: Record<string, string> = {
   available: "可注册",
   registered: "已注册",
   deleted: "已删除",
-  preview: "临时预览",
   running: "运行中",
   cancelled: "已取消",
   success: "成功",
@@ -148,9 +127,8 @@ function App() {
   const [config, setConfig] = useState<AppConfig>({});
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [candidateTld, setCandidateTld] = useState("");
   const [message, setMessage] = useState("");
-  const [previewConfig, setPreviewConfig] = useState<PreviewConfig>(defaultPreviewConfig());
-  const [previewResult, setPreviewResult] = useState<PreviewResult | null>(null);
   const hasRunningJob = jobs.some((job) => job.status === "running");
   const hasCrawlerSource = Boolean(
     config.expireddomains_accounts?.some((account) => account.enabled && account.username && account.password) &&
@@ -161,7 +139,7 @@ function App() {
     const [statsData, jobsData, candidatesData, configData] = await Promise.all([
       api<Stats>("/api/stats"),
       api<Job[]>("/api/jobs"),
-      api<Candidate[]>(`/api/domains?limit=100${status ? `&status=${status}` : ""}${search ? `&search=${encodeURIComponent(search)}` : ""}`),
+      api<Candidate[]>(domainsQuery({ status, search, tld: candidateTld })),
       api<AppConfig>("/api/config")
     ]);
     setStats(statsData);
@@ -185,11 +163,11 @@ function App() {
 
   useEffect(() => {
     if (view === "candidates") {
-      api<Candidate[]>(`/api/domains?limit=100${status ? `&status=${status}` : ""}${search ? `&search=${encodeURIComponent(search)}` : ""}`)
+      api<Candidate[]>(domainsQuery({ status, search, tld: candidateTld }))
         .then(setCandidates)
         .catch((error) => setMessage(error.message));
     }
-  }, [search, status, view]);
+  }, [candidateTld, search, status, view]);
 
   const nav = useMemo(
     () => [
@@ -237,14 +215,10 @@ function App() {
         )}
         {view === "candidates" && (
           <Candidates
-            candidates={previewResult?.items ?? candidates}
-            previewConfig={previewConfig}
-            previewResult={previewResult}
-            runPreview={runPreview}
+            candidates={candidates}
             search={search}
-            clearPreview={() => setPreviewResult(null)}
-            setMessage={setMessage}
-            setPreviewConfig={setPreviewConfig}
+            candidateTld={candidateTld}
+            setCandidateTld={setCandidateTld}
             setSearch={setSearch}
             setStatus={setStatus}
             status={status}
@@ -305,15 +279,6 @@ function App() {
     await runJob();
   }
 
-  async function runPreview() {
-    const result = await api<PreviewResult>("/api/domains/preview", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(previewConfig)
-    });
-    setPreviewResult(result);
-    setMessage(`预览完成：原始 ${result.total_source} 个，过滤后 ${result.total_filtered} 个，展示 ${result.total_scored} 个。`);
-  }
 }
 
 function navigateTo(view: View) {
@@ -381,26 +346,18 @@ function Dashboard({
 
 function Candidates({
   candidates,
-  previewConfig,
-  previewResult,
-  runPreview,
   search,
-  clearPreview,
-  setMessage,
-  setPreviewConfig,
+  candidateTld,
+  setCandidateTld,
   setSearch,
   status,
   setStatus,
   tldSchedules
 }: {
   candidates: Candidate[];
-  previewConfig: PreviewConfig;
-  previewResult: PreviewResult | null;
-  runPreview: () => Promise<void>;
   search: string;
-  clearPreview: () => void;
-  setMessage: (value: string) => void;
-  setPreviewConfig: (value: PreviewConfig) => void;
+  candidateTld: string;
+  setCandidateTld: (value: string) => void;
   setSearch: (value: string) => void;
   status: string;
   setStatus: (value: string) => void;
@@ -412,52 +369,17 @@ function Candidates({
 
   return (
     <section className="stack">
-      <section className="candidatePreview">
-        <div className="sectionHeader">
-          <h2>临时过滤预览</h2>
-          <p>只读取今日抓取的 ExpiredDomains.net 源数据重新过滤和评分，不重新抓取网页，不查询可注册状态，不发送通知。</p>
-        </div>
-        <div className="previewGrid">
-          <label>
-            <span>后缀</span>
-            <select
-              value={previewConfig.tlds}
-              onChange={(event) => setPreviewConfig({ ...previewConfig, tlds: event.target.value })}
-            >
-              <option value="">全部后缀</option>
-              {tldOptions.map((tld) => (
-                <option key={tld} value={tld}>{tld}</option>
-              ))}
-            </select>
-          </label>
-          <PreviewField label="域名包含" fieldKey="search" config={previewConfig} setConfig={setPreviewConfig} />
-          <PreviewField label="原始读取上限" fieldKey="source_limit" config={previewConfig} setConfig={setPreviewConfig} />
-          <PreviewField label="最小长度" fieldKey="filter_min_length" config={previewConfig} setConfig={setPreviewConfig} />
-          <PreviewField label="最大长度" fieldKey="filter_max_length" config={previewConfig} setConfig={setPreviewConfig} />
-          <PreviewField label="最低评分" fieldKey="min_score" config={previewConfig} setConfig={setPreviewConfig} />
-          <PreviewField label="候选数量上限" fieldKey="top_candidates" config={previewConfig} setConfig={setPreviewConfig} />
-          <PreviewField label="最大连续辅音数" fieldKey="filter_max_consecutive_consonants" config={previewConfig} setConfig={setPreviewConfig} />
-          <PreviewField label="仅允许字母" fieldKey="filter_letters_only" config={previewConfig} setConfig={setPreviewConfig} />
-          <PreviewField label="要求至少一个元音" fieldKey="filter_require_vowel" config={previewConfig} setConfig={setPreviewConfig} />
-          <PreviewField label="拒绝数字" fieldKey="filter_no_digits" config={previewConfig} setConfig={setPreviewConfig} />
-          <PreviewField label="拒绝连字符" fieldKey="filter_no_hyphen" config={previewConfig} setConfig={setPreviewConfig} />
-        </div>
-        <div className="toolbar">
-          <button onClick={() => runPreview().catch((error) => setMessage(error.message))}>
-            <Search size={18} />
-            预览候选
-          </button>
-          {previewResult && <button className="secondaryAction" onClick={clearPreview}>清除预览</button>}
-        </div>
-        {previewResult && (
-          <div className="hint">表格正在展示临时预览结果。原始 {previewResult.total_source} 个，过滤后 {previewResult.total_filtered} 个，当前展示 {previewResult.total_scored} 个。</div>
-        )}
-      </section>
       <div className="filters">
         <label className="search">
           <Search size={17} />
           <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索域名" />
         </label>
+        <select value={candidateTld} onChange={(event) => setCandidateTld(event.target.value)}>
+          <option value="">全部后缀</option>
+          {tldOptions.map((tld) => (
+            <option key={tld} value={tld}>{tld}</option>
+          ))}
+        </select>
         <select value={status} onChange={(event) => setStatus(event.target.value)}>
           <option value="">全部状态</option>
           <option value="available">可注册</option>
@@ -467,39 +389,6 @@ function Candidates({
       </div>
       <CandidateTable candidates={candidates} />
     </section>
-  );
-}
-
-function PreviewField({
-  config,
-  fieldKey,
-  label,
-  setConfig
-}: {
-  config: PreviewConfig;
-  fieldKey: keyof PreviewConfig;
-  label: string;
-  setConfig: (value: PreviewConfig) => void;
-}) {
-  const value = config[fieldKey];
-  return (
-    <label>
-      <span>{label}</span>
-      {typeof value === "boolean" ? (
-        <input type="checkbox" checked={value} onChange={(event) => setConfig({ ...config, [fieldKey]: event.target.checked })} />
-      ) : (
-        <input
-          type={typeof value === "number" ? "number" : "text"}
-          value={value}
-          onChange={(event) =>
-            setConfig({
-              ...config,
-              [fieldKey]: typeof value === "number" ? Number(event.target.value) : event.target.value
-            })
-          }
-        />
-      )}
-    </label>
   );
 }
 
@@ -537,19 +426,6 @@ function ConfigView({
       description: "配置 ExpiredDomains.net 账号、可选代理和各后缀的每日爬取计划。",
       dataSource: true,
       fields: []
-    },
-    {
-      title: "域名过滤规则",
-      description: "这些规则会在评分前执行，用来减少低质量候选。",
-      fields: [
-        ["filter_min_length", "最小长度"],
-        ["filter_max_length", "最大长度"],
-        ["filter_letters_only", "仅允许字母"],
-        ["filter_require_vowel", "要求至少一个元音"],
-        ["filter_no_digits", "拒绝数字"],
-        ["filter_no_hyphen", "拒绝连字符"],
-        ["filter_max_consecutive_consonants", "最大连续辅音数"]
-      ]
     },
     {
       title: "大模型评分",
@@ -1030,7 +906,7 @@ function TldSchedulesEditor({
   return (
     <div className="sourceRows">
       <div className="scheduleHeader">
-        <span>启用</span><span>后缀</span><span>每日时间</span><span>时区</span><span>最大页数</span><span>间隔秒</span><span>操作</span>
+        <span>启用</span><span>后缀</span><span>每日时间</span><span>时区</span><span>最大长度</span><span>允许数字</span><span>最大页数</span><span>间隔秒</span><span>操作</span>
       </div>
       {schedules.length === 0 && <div className="emptyState">至少添加一个后缀计划后才能启动任务。</div>}
       {schedules.map((schedule, index) => (
@@ -1048,6 +924,8 @@ function TldSchedulesEditor({
               {TIMEZONE_OPTIONS.map((timezone) => <option key={timezone} value={timezone}>{timezone}</option>)}
             </select>
           </MobileField>
+          <MobileField label="最大长度"><input type="number" min="1" value={String(schedule.filter_max_length ?? 5)} onChange={(event) => updateSchedule(index, { filter_max_length: Number(event.target.value) })} /></MobileField>
+          <MobileField label="允许数字"><input type="checkbox" checked={Boolean(schedule.filter_allow_digits)} onChange={(event) => updateSchedule(index, { filter_allow_digits: event.target.checked })} /></MobileField>
           <MobileField label="最大页数"><input type="number" min="1" value={String(schedule.max_pages ?? 20)} onChange={(event) => updateSchedule(index, { max_pages: Number(event.target.value) })} /></MobileField>
           <MobileField label="间隔秒"><input type="number" min="0" value={String(schedule.request_delay_seconds ?? 12)} onChange={(event) => updateSchedule(index, { request_delay_seconds: Number(event.target.value) })} /></MobileField>
           <div className="rowActions">
@@ -1152,6 +1030,20 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+function domainsQuery({ search, status, tld }: { search: string; status: string; tld: string }) {
+  const params = new URLSearchParams({ limit: "100" });
+  if (status) {
+    params.set("status", status);
+  }
+  if (search) {
+    params.set("search", search);
+  }
+  if (tld) {
+    params.set("tld", tld);
+  }
+  return `/api/domains?${params.toString()}`;
+}
+
 function titleFor(view: View) {
   return VIEW_TITLES[view];
 }
@@ -1186,23 +1078,6 @@ function normalizeTld(tld: string) {
   return tld.trim().toLowerCase().replace(/^\./, "");
 }
 
-function defaultPreviewConfig(): PreviewConfig {
-  return {
-    tlds: "",
-    search: "",
-    source_limit: 5000,
-    filter_min_length: 4,
-    filter_max_length: 12,
-    filter_letters_only: true,
-    filter_require_vowel: true,
-    filter_no_digits: true,
-    filter_no_hyphen: true,
-    filter_max_consecutive_consonants: 3,
-    top_candidates: 100,
-    min_score: 40
-  };
-}
-
 function newAccount(index: number): CrawlerAccount {
   return {
     id: `acc-${Date.now()}-${index}`,
@@ -1232,7 +1107,9 @@ function newSchedule(): TldSchedule {
     crawl_minute: 0,
     timezone: "Asia/Shanghai",
     max_pages: 20,
-    request_delay_seconds: 12
+    request_delay_seconds: 12,
+    filter_max_length: 5,
+    filter_allow_digits: false
   };
 }
 

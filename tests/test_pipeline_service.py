@@ -24,11 +24,7 @@ class PipelineServiceTests(unittest.TestCase):
                 [SourceDomain("flowmint.com", "com", source_status="available")],
                 source_date=date.today().isoformat(),
             )
-            config = AppConfig(
-                expireddomains_tld_schedules=[{"tld": "com", "enabled": True}],
-                filter_max_length=20,
-                filter_require_vowel=True,
-            )
+            config = AppConfig(expireddomains_tld_schedules=[{"tld": "com", "enabled": True}])
             score = ScoreResult("flowmint.com", 100, 0, 0, 100, ("默认评分",))
 
             with patch("backend.services.pipeline_service.score_domains_for_config", AsyncMock(return_value=[score])):
