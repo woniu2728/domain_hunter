@@ -554,19 +554,6 @@ function ConfigView({
       ]
     },
     {
-      title: "评分与查询",
-      description: "控制候选规模、最低分和外部查询超时。",
-      fields: [
-        ["top_candidates", "候选数量上限"],
-        ["min_score", "最低评分"],
-        ["availability_provider", "可注册查询方式"],
-        ["availability_concurrency", "可注册查询并发数"],
-        ["availability_timeout_seconds", "可注册查询超时秒数"],
-        ["wayback_enabled", "启用 Wayback 检查"],
-        ["wayback_timeout_seconds", "Wayback 超时秒数"]
-      ]
-    },
-    {
       title: "大模型评分",
       description: "配置后优先使用 OpenAI 兼容接口评分；不可用时自动回退到本地评分规则。",
       llmSettings: true,
@@ -644,20 +631,7 @@ function ConfigView({
                   <EmailSettingsEditor config={config} onSaveConfig={onSaveConfig} setConfig={setConfig} setMessage={setMessage} />
                 ) : (
                   group.fields.map(([key, label]) => (
-                    key === "availability_provider" ? (
-                      <label key={key}>
-                        <span>{label}</span>
-                        <select
-                          value={String(config.availability_provider ?? "mock")}
-                          onChange={(event) => setConfig({ ...config, availability_provider: event.target.value })}
-                        >
-                          <option value="mock">mock</option>
-                          <option value="rdap">rdap</option>
-                        </select>
-                      </label>
-                    ) : (
-                      <ConfigField config={config} fieldKey={key} key={key} label={label} setConfig={setConfig} />
-                    )
+                    <ConfigField config={config} fieldKey={key} key={key} label={label} setConfig={setConfig} />
                   ))
                 )}
               </div>
