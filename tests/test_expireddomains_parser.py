@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 
 from crawler.expireddomains import build_deleted_url
-from crawler.expireddomains_parser import parse_deleted_domains
+from crawler.expireddomains_parser import ParseError, parse_deleted_domains
 
 
 class ExpiredDomainsParserTests(unittest.TestCase):
@@ -65,6 +65,26 @@ class ExpiredDomainsParserTests(unittest.TestCase):
         self.assertEqual(seen, 1)
         self.assertEqual(len(domains), 1)
         self.assertEqual(domains[0].domain, "flowmint.com")
+
+    def test_parse_email_auth_page_reports_verification_required(self) -> None:
+        html = """
+        <html>
+          <head>
+            <title>Multi Factor Authentication</title>
+            <link rel="canonical" href="https://www.expireddomains.net/emailauth/token/">
+          </head>
+          <body>
+            <form action="/emailauth/token/">
+              <p>Please enter the code we just sent to your email.</p>
+              <input type="text" name="secret_code">
+              <button>Verify Code</button>
+            </form>
+          </body>
+        </html>
+        """
+
+        with self.assertRaisesRegex(ParseError, "邮箱验证码"):
+            parse_deleted_domains(html, "com")
 
 
 if __name__ == "__main__":

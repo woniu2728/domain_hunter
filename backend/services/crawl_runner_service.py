@@ -80,6 +80,13 @@ async def test_account(db: Database, account_id: str) -> None:
     await ExpiredDomainsCrawler(account, proxy).test_login()
 
 
+async def verify_account_email_code(db: Database, account_id: str, code: str) -> None:
+    config = await ConfigService(db).get_config()
+    account = _find_account(config, account_id)
+    proxy = select_proxy(account, config.expireddomains_proxies, config.expireddomains_default_proxy_id)
+    await ExpiredDomainsCrawler(account, proxy).verify_email_code(code)
+
+
 async def test_proxy(db: Database, proxy_id: str) -> None:
     config = await ConfigService(db).get_config()
     proxy = _find_proxy(config, proxy_id)

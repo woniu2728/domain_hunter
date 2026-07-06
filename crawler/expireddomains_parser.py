@@ -11,8 +11,9 @@ class ParseError(ValueError):
 
 def parse_deleted_domains(html: str, tld: str) -> tuple[list[SourceDomain], int, str | None]:
     soup = BeautifulSoup(html, "lxml")
-    if _looks_blocked(soup):
-        raise ParseError("页面疑似出现验证码、登录失效或访问限制。")
+    block_reason = _blocked_reason(soup)
+    if block_reason:
+        raise ParseError(block_reason)
 
     table = _find_domain_table(soup)
     if table is None:
@@ -108,10 +109,17 @@ def _next_page_url(soup: BeautifulSoup) -> str | None:
     return None
 
 
-def _looks_blocked(soup: BeautifulSoup) -> bool:
+def _blocked_reason(soup: BeautifulSoup) -> str:
     text = soup.get_text(" ").lower()
+    title = _clean_text(soup.title.get_text(" ")) if soup.title else ""
+    canonical = soup.select_one('link[rel="canonical"]')
+    canonical_href = str(canonical.get("href", "")) if canonical else ""
+    if "emailauth" in canonical_href.lower() or "multi factor authentication" in title.lower() or "verify code" in text:
+        return "ExpiredDomains.net 要求邮箱验证码验证，请在账号配置中提交邮件验证码后重试。"
     patterns = ("captcha", "verify", "access denied", "too many requests", "login")
-    return any(pattern in text for pattern in patterns) and "domain" not in text
+    if any(pattern in text for pattern in patterns) and "domain" not in text:
+        return "页面疑似出现验证码、登录失效或访问限制。"
+    return ""
 
 
 def _clean_text(value: str) -> str:

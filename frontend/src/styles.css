@@ -540,7 +540,7 @@ th {
 
 .accountHeader,
 .accountRow {
-  grid-template-columns: 56px minmax(130px, 1fr) minmax(130px, 1fr) minmax(130px, 170px) 92px 122px;
+  grid-template-columns: 56px minmax(130px, 1fr) minmax(130px, 1fr) minmax(130px, 170px) 92px 208px;
 }
 
 .proxyHeader,
@@ -769,6 +769,14 @@ th {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.modalGrid.singleColumn {
+  grid-template-columns: 1fr;
+}
+
+.smallModal {
+  max-width: 460px;
 }
 
 .modalGrid .mobileField {

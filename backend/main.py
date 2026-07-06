@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.services.config_service import ConfigService
-from backend.services.crawl_runner_service import test_account, test_fetch_first_page, test_proxy
+from backend.services.crawl_runner_service import test_account, test_fetch_first_page, test_proxy, verify_account_email_code
 from backend.services.job_runner_service import job_runner_service
 from backend.services.scheduler_service import scheduler_service
 from config import get_settings
@@ -157,6 +157,19 @@ async def test_crawler_account(account_id: str) -> dict[str, str]:
         await test_account(db, account_id)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"账号测试失败：{exc}") from exc
+    return {"status": "ok"}
+
+
+@app.post("/api/crawler/accounts/{account_id}/verify-email")
+async def verify_crawler_account_email(account_id: str, payload: dict) -> dict[str, str]:
+    db = _db()
+    await db.init()
+    try:
+        await verify_account_email_code(db, account_id, str(payload.get("code", "")))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"邮箱验证码验证失败：{exc}") from exc
     return {"status": "ok"}
 
 

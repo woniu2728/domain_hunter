@@ -47,8 +47,16 @@ class ExpiredDomainsCrawler:
         html = await asyncio.to_thread(self._fetch_html, build_deleted_url("com"))
         if "captcha" in html.lower():
             raise CrawlBlockedError("登录页出现验证码，需要人工处理。")
+        if _looks_like_email_auth_page(html):
+            raise CrawlBlockedError("ExpiredDomains.net 要求邮箱验证码验证，请提交邮件验证码后重试。")
         if _looks_like_login_page(html):
             raise CrawlBlockedError("登录失败，请检查 ExpiredDomains.net 账号密码。")
+
+    async def verify_email_code(self, code: str) -> None:
+        clean_code = code.strip()
+        if not clean_code:
+            raise ValueError("验证码不能为空。")
+        await asyncio.to_thread(self._fetch_html, build_deleted_url("com"), self._verify_email_if_needed(clean_code))
 
     async def crawl_tld(
         self,
@@ -82,7 +90,7 @@ class ExpiredDomainsCrawler:
             available_domains=all_available,
         )
 
-    def _fetch_html(self, url: str) -> str:
+    def _fetch_html(self, url: str, page_action=None) -> str:
         try:
             from scrapling.fetchers import StealthyFetcher
         except Exception as exc:  # pragma: no cover - depends on optional install details
@@ -92,7 +100,7 @@ class ExpiredDomainsCrawler:
             "headless": True,
             "network_idle": True,
             "user_data_dir": str(self.session_dir),
-            "page_action": self._login_if_needed,
+            "page_action": page_action or self._login_if_needed,
             "wait": 1000,
         }
         if self.proxy:
@@ -134,6 +142,27 @@ class ExpiredDomainsCrawler:
         if _is_login_url(page.url) or _looks_like_login_page(content):
             raise CrawlBlockedError("登录失败，请检查 ExpiredDomains.net 账号密码。")
 
+    def _verify_email_if_needed(self, code: str):
+        def verify(page) -> None:
+            self._login_if_needed(page)
+            content = page.content()
+            if not _looks_like_email_auth_page(content):
+                return
+            try:
+                page.wait_for_selector('input[name="secret_code"]', timeout=8000)
+                page.locator('input[name="secret_code"]').first.fill(code)
+                remember = page.locator('input[name="rememberme"]')
+                if remember.count():
+                    remember.first.check()
+                with page.expect_navigation(wait_until="networkidle", timeout=20000):
+                    page.locator('button[type="submit"], input[type="submit"], button').filter(has_text="Verify").first.click()
+            except Exception as exc:
+                raise CrawlBlockedError("邮箱验证码提交失败，请确认验证码是否正确或是否已过期。") from exc
+            if _looks_like_email_auth_page(page.content()):
+                raise CrawlBlockedError("邮箱验证码验证失败，请确认验证码是否正确或是否已过期。")
+
+        return verify
+
     def _save_snapshot(self, html: str, tld: str, page: int, run_id: int | None) -> None:
         if run_id is None:
             return
@@ -166,3 +195,8 @@ def _is_login_url(url: str) -> bool:
 def _looks_like_login_page(html: str) -> bool:
     lowered = html.lower()
     return bool(re.search(r"<input[^>]+type=[\"']?password", lowered)) and ("login" in lowered or "username" in lowered)
+
+
+def _looks_like_email_auth_page(html: str) -> bool:
+    lowered = html.lower()
+    return "emailauth" in lowered and ("secret_code" in lowered or "multi factor authentication" in lowered or "verify code" in lowered)

@@ -822,6 +822,8 @@ function AccountsEditor({
 }) {
   const accounts = config.expireddomains_accounts ?? [];
   const proxies = config.expireddomains_proxies ?? [];
+  const [verifyingAccount, setVerifyingAccount] = useState<CrawlerAccount | null>(null);
+  const [emailCode, setEmailCode] = useState("");
 
   function updateAccount(index: number, patch: Partial<CrawlerAccount>) {
     setConfig({ ...config, expireddomains_accounts: accounts.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)) });
@@ -831,6 +833,20 @@ function AccountsEditor({
     await onSaveConfig();
     await api<{ status: string }>(`/api/crawler/accounts/${encodeURIComponent(account.id)}/test`, { method: "POST" });
     setMessage(`账号 ${account.username} 测试通过`);
+  }
+
+  async function verifyEmailCode() {
+    if (!verifyingAccount) {
+      return;
+    }
+    await onSaveConfig();
+    await api<{ status: string }>(`/api/crawler/accounts/${encodeURIComponent(verifyingAccount.id)}/verify-email`, {
+      body: JSON.stringify({ code: emailCode }),
+      method: "POST"
+    });
+    setMessage(`账号 ${verifyingAccount.username} 邮箱验证码验证通过`);
+    setEmailCode("");
+    setVerifyingAccount(null);
   }
 
   return (
@@ -857,11 +873,33 @@ function AccountsEditor({
           </MobileField>
           <div className="rowActions">
             <button type="button" onClick={() => testAccount(account).catch((error) => setMessage(error.message))}>测试</button>
+            <button type="button" onClick={() => { setEmailCode(""); setVerifyingAccount(account); }}>验证码</button>
             <button type="button" onClick={() => setConfig({ ...config, expireddomains_accounts: accounts.filter((_, itemIndex) => itemIndex !== index) })}>删除</button>
           </div>
         </div>
       ))}
       <button className="secondaryButton" type="button" onClick={() => setConfig({ ...config, expireddomains_accounts: [...accounts, newAccount(accounts.length + 1)] })}>添加账号</button>
+      {verifyingAccount && (
+        <div className="modalBackdrop" role="presentation" onMouseDown={() => setVerifyingAccount(null)}>
+          <div aria-modal="true" className="modalPanel smallModal" role="dialog" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="modalHeader">
+              <div>
+                <h3>邮箱验证码</h3>
+                <p>输入 ExpiredDomains.net 发到账号邮箱的验证码，用于完成二次验证。</p>
+              </div>
+              <button className="iconTextButton" type="button" onClick={() => setVerifyingAccount(null)}>关闭</button>
+            </div>
+            <div className="modalGrid singleColumn">
+              <MobileField label="验证码">
+                <input autoFocus value={emailCode} onChange={(event) => setEmailCode(event.target.value)} placeholder="邮件验证码" />
+              </MobileField>
+            </div>
+            <div className="modalActions">
+              <button className="primaryButton" type="button" onClick={() => verifyEmailCode().catch((error) => setMessage(error.message))}>提交验证</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1069,7 +1107,10 @@ function JobTable({ jobs }: { jobs: Job[] }) {
 }
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API}${path}`, init);
+  const response = await fetch(`${API}${path}`, {
+    ...init,
+    headers: init?.body ? { "Content-Type": "application/json", ...(init.headers ?? {}) } : init?.headers
+  });
   if (!response.ok) {
     const text = await response.text();
     let message = text;
