@@ -25,6 +25,10 @@ class CrawlBlockedError(RuntimeError):
     pass
 
 
+class AccountDeactivatedError(CrawlBlockedError):
+    pass
+
+
 class ExpiredDomainsCrawler:
     def __init__(
         self,
@@ -45,6 +49,7 @@ class ExpiredDomainsCrawler:
 
     async def test_login(self) -> None:
         html = await asyncio.to_thread(self._fetch_html, build_deleted_url("com"))
+        _raise_known_error_page(html)
         if "captcha" in html.lower():
             raise CrawlBlockedError("登录页出现验证码，需要人工处理。")
         if _looks_like_email_auth_page(html):
@@ -74,6 +79,7 @@ class ExpiredDomainsCrawler:
         pages_fetched = 0
         for page_index in range(max(1, max_pages)):
             html = await asyncio.to_thread(self._fetch_html, url)
+            _raise_known_error_page(html)
             pages_fetched += 1
             self._save_snapshot(html, clean_tld, page_index + 1, run_id)
             available, seen, next_url = parse_deleted_domains(html, clean_tld)
@@ -203,3 +209,9 @@ def _looks_like_login_page(html: str) -> bool:
 def _looks_like_email_auth_page(html: str) -> bool:
     lowered = html.lower()
     return "emailauth" in lowered and ("secret_code" in lowered or "multi factor authentication" in lowered or "verify code" in lowered)
+
+
+def _raise_known_error_page(html: str) -> None:
+    lowered = html.lower()
+    if "user.message.accountdeactivated" in lowered or "accountdeactivated" in lowered:
+        raise AccountDeactivatedError("ExpiredDomains.net 账号已停用或被封禁，请更换账号。")

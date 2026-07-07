@@ -4,7 +4,7 @@ from datetime import date, timedelta
 
 from backend.services.config_service import ConfigService
 from crawler.account_pool import select_account, select_proxy
-from crawler.expireddomains import ExpiredDomainsCrawler
+from crawler.expireddomains import AccountDeactivatedError, ExpiredDomainsCrawler
 from database import Database
 from domain_hunter.types import AppConfig
 
@@ -31,7 +31,26 @@ class CrawlRunnerService:
         return crawled_tlds
 
     async def crawl_tld(self, schedule: dict, schedule_index: int = 1, schedule_total: int = 1) -> None:
-        account = select_account(self.config.expireddomains_accounts)
+        accounts = self.config.expireddomains_accounts
+        initial_enabled_account_ids = _enabled_account_ids(accounts)
+        disabled_accounts: set[str] = set()
+        last_error: Exception | None = None
+        while True:
+            try:
+                account = select_account(_available_accounts(accounts, disabled_accounts))
+                return await self._crawl_tld_with_account(account, schedule, schedule_index, schedule_total)
+            except AccountDeactivatedError as exc:
+                disabled_accounts.add(account.id)
+                last_error = exc
+                accounts = await self._mark_account_failed(accounts, account.id, str(exc))
+                if disabled_accounts >= initial_enabled_account_ids:
+                    raise
+            except ValueError:
+                if last_error is not None:
+                    raise last_error
+                raise
+
+    async def _crawl_tld_with_account(self, account, schedule: dict, schedule_index: int, schedule_total: int) -> None:
         proxy = select_proxy(account, self.config.expireddomains_proxies, self.config.expireddomains_default_proxy_id)
         tld = str(schedule["tld"])
         run_id = await self.db.create_crawler_run(
@@ -97,6 +116,16 @@ class CrawlRunnerService:
             )
             raise
 
+    async def _mark_account_failed(self, current_accounts: list[dict], account_id: str, error: str) -> list[dict]:
+        accounts = []
+        for account in current_accounts:
+            if str(account.get("id", "")) == account_id:
+                accounts.append({**account, "status": "failed", "enabled": False, "last_error": error})
+            else:
+                accounts.append(account)
+        await self.db.set_settings({"expireddomains_accounts": accounts})
+        return accounts
+
 
 async def test_account(db: Database, account_id: str) -> None:
     config = await ConfigService(db).get_config()
@@ -153,6 +182,14 @@ def _enabled_schedules(config: AppConfig, tld: str | None = None) -> list[dict]:
         and schedule.get("tld")
         and (not requested or str(schedule.get("tld", "")).lower().lstrip(".") == requested)
     ]
+
+
+def _available_accounts(accounts: list[dict], disabled_account_ids: set[str]) -> list[dict]:
+    return [account for account in accounts if str(account.get("id", "")) not in disabled_account_ids]
+
+
+def _enabled_account_ids(accounts: list[dict]) -> set[str]:
+    return {str(account.get("id", "")) for account in accounts if account.get("enabled", True)}
 
 
 def _schedule_for_tld(config: AppConfig, tld: str) -> dict | None:
