@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from collections.abc import Iterable
 import json
+import logging
 import re
 
 import httpx
@@ -10,6 +12,9 @@ from domain_hunter.types import AppConfig, ScoreResult
 
 
 DEFAULT_SCORE_REASON = "大模型不可用，使用默认评分。"
+LLM_BATCH_SIZE = 50
+LLM_TIMEOUT_SECONDS = 120
+logger = logging.getLogger(__name__)
 DEFAULT_LLM_PROMPT = (
     "你是域名投资筛选助手。只返回合法 JSON，不要 Markdown。"
     "请为每个已删除域名按 0 到 100 评分，考虑品牌感、长度、发音、商业价值、清晰度和垃圾风险。"
@@ -17,25 +22,51 @@ DEFAULT_LLM_PROMPT = (
 )
 
 
-async def score_domains_for_config(domains: Iterable[str], config: AppConfig) -> list[ScoreResult]:
+ProgressCallback = Callable[[int, int], Awaitable[None]]
+
+
+async def score_domains_for_config(
+    domains: Iterable[str],
+    config: AppConfig,
+    on_progress: ProgressCallback | None = None,
+) -> list[ScoreResult]:
     domain_list = list(domains)
     if not _llm_enabled(config):
         return _default_scores(domain_list)
-    try:
-        return await _score_domains_with_llm(domain_list, config)
-    except Exception:
-        return _default_scores(domain_list)
+    return await _score_domains_with_llm(domain_list, config, on_progress=on_progress)
 
 
 async def test_llm_scoring(config: AppConfig, domain: str = "flowmint.com") -> ScoreResult:
     if not _llm_enabled(config):
         raise ValueError("请先配置 Base URL、API Key 和 Model ID。")
-    return (await _score_domains_with_llm([domain], config))[0]
+    return (await _score_domains_with_llm([domain], config, fallback_on_error=False))[0]
 
 
-async def _score_domains_with_llm(domains: list[str], config: AppConfig) -> list[ScoreResult]:
-    async with httpx.AsyncClient(timeout=60) as client:
-        scores = await _score_batch(client, domains, config)
+async def _score_domains_with_llm(
+    domains: list[str],
+    config: AppConfig,
+    on_progress: ProgressCallback | None = None,
+    fallback_on_error: bool = True,
+) -> list[ScoreResult]:
+    scores: list[ScoreResult] = []
+    completed = 0
+    async with httpx.AsyncClient(timeout=LLM_TIMEOUT_SECONDS) as client:
+        for batch in _chunks(domains, LLM_BATCH_SIZE):
+            try:
+                scores.extend(await _score_batch(client, batch, config))
+            except Exception:
+                if not fallback_on_error:
+                    raise
+                logger.warning(
+                    "LLM scoring batch failed, falling back to default scores. batch_size=%s first_domain=%s",
+                    len(batch),
+                    batch[0] if batch else "",
+                    exc_info=True,
+                )
+                scores.extend(_default_scores(batch))
+            completed += len(batch)
+            if on_progress:
+                await on_progress(completed, len(domains))
     return sorted(scores, key=lambda item: item.total_score, reverse=True)
 
 
@@ -113,6 +144,11 @@ def _default_scores(domains: list[str]) -> list[ScoreResult]:
         )
         for domain in domains
     ]
+
+
+def _chunks(items: list[str], size: int) -> Iterable[list[str]]:
+    for index in range(0, len(items), size):
+        yield items[index : index + size]
 
 
 def _llm_enabled(config: AppConfig) -> bool:

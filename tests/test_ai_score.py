@@ -42,9 +42,37 @@ class AiScoreTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(scores[0].total_score, 100)
         self.assertEqual(scores[0].reasons, ("大模型不可用，使用默认评分。",))
 
-    async def test_uses_one_llm_request_for_all_domains(self) -> None:
+    async def test_scores_domains_in_batches(self) -> None:
         config = AppConfig(llm_base_url="https://llm.example/v1", llm_api_key="key", llm_model_id="model")
         domains = [f"brand{i}.com" for i in range(75)]
+
+        def response_for(batch: list[str]) -> Mock:
+            response = Mock()
+            response.raise_for_status.return_value = None
+            response.json.return_value = {
+                "choices": [
+                    {
+                        "message": {
+                            "content": '{"scores":['
+                            + ",".join(f'{{"domain":"{domain}","score":80,"reason":"中文原因"}}' for domain in batch)
+                            + "]}"
+                        }
+                    }
+                ]
+            }
+            return response
+
+        responses = [response_for(domains[:50]), response_for(domains[50:])]
+        post = AsyncMock(side_effect=responses)
+        with patch("httpx.AsyncClient.post", post):
+            scores = await score_domains_for_config(domains, config)
+
+        self.assertEqual(len(scores), 75)
+        self.assertEqual(post.await_count, 2)
+
+    async def test_falls_back_only_failed_batch(self) -> None:
+        config = AppConfig(llm_base_url="https://llm.example/v1", llm_api_key="key", llm_model_id="model")
+        domains = [f"brand{i}.com" for i in range(55)]
         response = Mock()
         response.raise_for_status.return_value = None
         response.json.return_value = {
@@ -52,19 +80,19 @@ class AiScoreTests(unittest.IsolatedAsyncioTestCase):
                 {
                     "message": {
                         "content": '{"scores":['
-                        + ",".join(f'{{"domain":"{domain}","score":80,"reason":"中文原因"}}' for domain in domains)
+                        + ",".join(f'{{"domain":"{domain}","score":70,"reason":"中文原因"}}' for domain in domains[50:])
                         + "]}"
                     }
                 }
             ]
         }
 
-        post = AsyncMock(return_value=response)
-        with patch("httpx.AsyncClient.post", post):
+        with patch("httpx.AsyncClient.post", AsyncMock(side_effect=[RuntimeError("timeout"), response])):
             scores = await score_domains_for_config(domains, config)
 
-        self.assertEqual(len(scores), 75)
-        self.assertEqual(post.await_count, 1)
+        by_domain = {score.domain: score for score in scores}
+        self.assertEqual(by_domain["brand0.com"].reasons, ("大模型不可用，使用默认评分。",))
+        self.assertEqual(by_domain["brand50.com"].total_score, 70)
 
     async def test_uses_configured_prompt(self) -> None:
         config = AppConfig(

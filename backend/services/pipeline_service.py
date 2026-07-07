@@ -56,7 +56,12 @@ class PipelineService:
             candidate_limit = self.config.top_candidates if top is None else top
             if job_id is not None:
                 await self.db.update_job_progress(job_id, "score", f"开始评分 {len(filtered)} 个候选域名", 0, len(filtered))
-            scored = await score_domains_for_config(filtered, self.config)
+
+            async def on_score_progress(done: int, total: int) -> None:
+                if job_id is not None:
+                    await self.db.update_job_progress(job_id, "score", f"大模型评分 {done}/{total}", done, total)
+
+            scored = await score_domains_for_config(filtered, self.config, on_progress=on_score_progress)
             limited_scores = scored[:candidate_limit]
             counts["total_scored"] = len(limited_scores)
             counts["total_available"] = sum(
