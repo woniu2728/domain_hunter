@@ -460,7 +460,7 @@ function ConfigView({
     },
     {
       title: "大模型评分",
-      description: "配置 OpenAI 兼容接口和评分 Prompt；不可用时默认评分 100。",
+      description: "配置 OpenAI 兼容接口和评分 Prompt；不可用时默认评分 0。",
       llmSettings: true,
       fields: [
         ["llm_base_url", "Base URL"],

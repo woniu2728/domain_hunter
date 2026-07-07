@@ -11,7 +11,7 @@ import httpx
 from domain_hunter.types import AppConfig, ScoreResult
 
 
-DEFAULT_SCORE_REASON = "大模型不可用，使用默认评分。"
+DEFAULT_SCORE_REASON = "大模型不可用，使用 0 分。"
 LLM_BATCH_SIZE = 50
 LLM_TIMEOUT_SECONDS = 120
 logger = logging.getLogger(__name__)
@@ -58,7 +58,7 @@ async def _score_domains_with_llm(
                 if not fallback_on_error:
                     raise
                 logger.warning(
-                    "LLM scoring batch failed, falling back to default scores. batch_size=%s first_domain=%s",
+                    "LLM scoring batch failed, falling back to zero scores. batch_size=%s first_domain=%s",
                     len(batch),
                     batch[0] if batch else "",
                     exc_info=True,
@@ -136,10 +136,10 @@ def _default_scores(domains: list[str]) -> list[ScoreResult]:
     return [
         ScoreResult(
             domain=domain,
-            brand_score=100,
+            brand_score=0,
             dictionary_score=0,
             trend_score=0,
-            total_score=100,
+            total_score=0,
             reasons=(DEFAULT_SCORE_REASON,),
         )
         for domain in domains

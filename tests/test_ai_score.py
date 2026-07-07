@@ -39,8 +39,8 @@ class AiScoreTests(unittest.IsolatedAsyncioTestCase):
         with patch("httpx.AsyncClient.post", AsyncMock(side_effect=RuntimeError("boom"))):
             scores = await score_domains_for_config(["flowmint.com"], config)
 
-        self.assertEqual(scores[0].total_score, 100)
-        self.assertEqual(scores[0].reasons, ("大模型不可用，使用默认评分。",))
+        self.assertEqual(scores[0].total_score, 0)
+        self.assertEqual(scores[0].reasons, ("大模型不可用，使用 0 分。",))
 
     async def test_scores_domains_in_batches(self) -> None:
         config = AppConfig(llm_base_url="https://llm.example/v1", llm_api_key="key", llm_model_id="model")
@@ -91,7 +91,8 @@ class AiScoreTests(unittest.IsolatedAsyncioTestCase):
             scores = await score_domains_for_config(domains, config)
 
         by_domain = {score.domain: score for score in scores}
-        self.assertEqual(by_domain["brand0.com"].reasons, ("大模型不可用，使用默认评分。",))
+        self.assertEqual(by_domain["brand0.com"].total_score, 0)
+        self.assertEqual(by_domain["brand0.com"].reasons, ("大模型不可用，使用 0 分。",))
         self.assertEqual(by_domain["brand50.com"].total_score, 70)
 
     async def test_uses_configured_prompt(self) -> None:
